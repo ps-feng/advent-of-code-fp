@@ -36,7 +36,7 @@ day3Part1 = do
         Right 1
 
 data Claim = Claim 
-  { id :: Int, 
+  { id :: Int
   , x :: Int
   , y :: Int
   , width :: Int
