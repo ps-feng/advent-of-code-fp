@@ -2,10 +2,10 @@ module Test.Main where
 
 import Prelude
 import Test.Day1 as Day1
+import Test.Day2 as Day2
 import Effect (Effect)
-import Effect.Console (log)
 
 main :: Effect Unit
 main = do
   Day1.main
-  log "You should add some tests."
+  Day2.main

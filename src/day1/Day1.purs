@@ -4,15 +4,13 @@ module Day1
   ) where
 
 import Data.List (List(..), foldl, fromFoldable, (:))
-import Prelude (bind, map, pure, ($), (+), (<$>), (>=>))
+import Prelude (bind, map, pure, (+), (<$>))
 import Data.Maybe (Maybe(..))
 import Data.Number (fromString, nan)
 import Data.Set as S
-import Data.String as String
 import Data.Traversable (sequence)
 import Effect (Effect)
-import Node.Encoding (Encoding(..))
-import Node.FS.Sync as FsSync
+import Util
 
 day1Part1 :: Effect Number
 day1Part1 = do
@@ -71,14 +69,3 @@ day1Part2' deltas = part2' 0.0 (S.singleton 0.0) (fromFoldable deltas)
 --       else
 --         part2' (S.insert x seen) $ trace (show xs) (\_ -> xs)
 --     _ -> nan
-readFileLines :: String -> Effect (Array String)
-readFileLines filePath = do
-  text <- FsSync.readTextFile UTF8 filePath
-  let
-    lines = splitByNewline text
-  pure $ splitByNewline text
-
-splitByNewline ∷ String → Array String
-splitByNewline =
-  String.split (String.Pattern "\n")
-    >=> String.split (String.Pattern "\r")
