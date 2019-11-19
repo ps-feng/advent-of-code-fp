@@ -1,23 +1,26 @@
 module Day3
   ( day3Part1
+  , day3Part2
   , numberOfOverlappingClaims
   , Claim(..)
   , updateFabric
   ) where
 
 import Control.Semigroupoid ((>>>))
-import Data.Either (Either(..))
-import Data.Function (flip)
-import Data.String.Regex (match, regex)
-import Data.String.Regex.Flags (noFlags)
+import Data.Array (head)
 import Data.Array.NonEmpty as NonEmpty
+import Data.Either (Either(..))
 import Data.Foldable (foldl)
+import Data.Function ((#), flip)
 import Data.Hashable
 import Data.HashMap as H
+import Data.HashSet as S
 import Data.Int (fromString)
 import Data.List (List, range)
 import Data.Maybe (Maybe(..))
 import Data.Ord ((>))
+import Data.String.Regex (match, regex)
+import Data.String.Regex.Flags (noFlags)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -39,6 +42,24 @@ day3Part1 filePath= do
           Just theClaims -> Right $ numberOfOverlappingClaims theClaims
           Nothing -> Left "Empty claims"
 
+day3Part2 :: String -> Effect (Either String Int)
+day3Part2 filePath= do
+  input <- readFileLines filePath
+  let
+    eitherRegex = regex "#(\\d+)\\s@\\s(\\d+),(\\d+):\\s(\\d+)x(\\d+)" noFlags
+  pure case eitherRegex of
+    Left error -> Left error
+    Right r ->
+      let 
+        maybeFinalClaimId = do
+          claims <- sequence $ map (match r >>> matchToClaim) input
+          finalClaimId <- nonOverlappingClaim claims
+          pure $ finalClaimId
+      in
+        case maybeFinalClaimId of
+          Just id -> Right id
+          _ -> Left "Could not parse input or didn't find id"
+
 newtype Claim
   = Claim
   { id :: Int
@@ -51,32 +72,45 @@ newtype Claim
 type Coord
   = Tuple Int Int
 
-type OverlapCount
-  = Int
+type ClaimIds
+  = S.HashSet Int
 
 type Fabric
-  = H.HashMap Coord OverlapCount
+  = H.HashMap Coord ClaimIds
 
 numberOfOverlappingClaims :: Array Claim -> Int
 numberOfOverlappingClaims claims =
   let fabric = foldl (flip updateFabric) H.empty claims
-      squaresWithOverlappingClaims = H.filter (\overlapCount -> overlapCount > 1) fabric
+      squaresWithOverlappingClaims = H.filter (\claimIds -> S.size claimIds > 1) fabric
   in H.size squaresWithOverlappingClaims
+
+nonOverlappingClaim :: Array Claim -> Maybe Int
+nonOverlappingClaim claims =
+  let
+    allClaimIdSet = foldl (\claimSet (Claim claim) -> S.insert claim.id claimSet) S.empty claims
+    fabric = foldl (flip updateFabric) H.empty claims
+    removeIfOverlap = \accumClaimSet claimIds -> 
+            if S.size claimIds > 1 then accumClaimSet `S.difference` claimIds
+            else accumClaimSet
+    finalClaimSet = foldl removeIfOverlap allClaimIdSet (H.values fabric) -- TODO: WHY?????
+  in
+    S.toArray finalClaimSet
+    # head
     
 updateFabric :: Claim -> Fabric -> Fabric
-updateFabric claim fabric = foldl alterFabric fabric squares
+updateFabric (Claim claim) fabric = foldl alterFabric fabric squares
   where
   alterFabric = \accumFabric square -> alterFabric' square accumFabric
 
-  alterFabric' :: forall k. Hashable k => k -> H.HashMap k Int -> H.HashMap k Int
+  alterFabric' :: forall k. Hashable k => k -> H.HashMap k ClaimIds -> H.HashMap k ClaimIds
   alterFabric' =
     H.alter
-      ( \value -> case value of
-          Nothing -> Just 1
-          Just prevValue -> Just $ prevValue + 1
+      ( \maybeClaimIds -> case maybeClaimIds of
+          Nothing -> Just $ S.singleton claim.id
+          Just prevClaimIds -> Just $ S.insert claim.id prevClaimIds
       )
 
-  squares = claimedSquares claim
+  squares = claimedSquares (Claim claim)
 
 claimedSquares :: Claim -> List Coord
 claimedSquares (Claim c) = do
