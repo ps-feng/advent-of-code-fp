@@ -28,7 +28,7 @@ import Prelude (bind, map, pure, ($), (+), (-))
 import Util (readFileLines)
 
 day3Part1 :: String -> Effect (Either String Int)
-day3Part1 filePath= do
+day3Part1 filePath = do
   input <- readFileLines filePath
   let
     eitherRegex = regex "#(\\d+)\\s@\\s(\\d+),(\\d+):\\s(\\d+)x(\\d+)" noFlags
@@ -43,14 +43,14 @@ day3Part1 filePath= do
           Nothing -> Left "Empty claims"
 
 day3Part2 :: String -> Effect (Either String Int)
-day3Part2 filePath= do
+day3Part2 filePath = do
   input <- readFileLines filePath
   let
     eitherRegex = regex "#(\\d+)\\s@\\s(\\d+),(\\d+):\\s(\\d+)x(\\d+)" noFlags
   pure case eitherRegex of
     Left error -> Left error
     Right r ->
-      let 
+      let
         maybeFinalClaimId = do
           claims <- sequence $ map (match r >>> matchToClaim) input
           finalClaimId <- nonOverlappingClaim claims
@@ -80,23 +80,31 @@ type Fabric
 
 numberOfOverlappingClaims :: Array Claim -> Int
 numberOfOverlappingClaims claims =
-  let fabric = foldl (flip updateFabric) H.empty claims
-      squaresWithOverlappingClaims = H.filter (\claimIds -> S.size claimIds > 1) fabric
-  in H.size squaresWithOverlappingClaims
+  let
+    fabric = foldl (flip updateFabric) H.empty claims
+
+    squaresWithOverlappingClaims = H.filter (\claimIds -> S.size claimIds > 1) fabric
+  in
+    H.size squaresWithOverlappingClaims
 
 nonOverlappingClaim :: Array Claim -> Maybe Int
 nonOverlappingClaim claims =
   let
     allClaimIdSet = foldl (\claimSet (Claim claim) -> S.insert claim.id claimSet) S.empty claims
+
     fabric = foldl (flip updateFabric) H.empty claims
-    removeIfOverlap = \accumClaimSet claimIds -> 
-            if S.size claimIds > 1 then accumClaimSet `S.difference` claimIds
-            else accumClaimSet
+
+    removeIfOverlap = \accumClaimSet claimIds ->
+      if S.size claimIds > 1 then
+        accumClaimSet `S.difference` claimIds
+      else
+        accumClaimSet
+
     finalClaimSet = foldl removeIfOverlap allClaimIdSet (H.values fabric) -- TODO: WHY?????
   in
     S.toArray finalClaimSet
-    # head
-    
+      # head
+
 updateFabric :: Claim -> Fabric -> Fabric
 updateFabric (Claim claim) fabric = foldl alterFabric fabric squares
   where
@@ -121,9 +129,9 @@ claimedSquares (Claim c) = do
 matchToClaim :: Maybe (NonEmpty.NonEmptyArray (Maybe String)) -> Maybe Claim
 matchToClaim Nothing = Nothing
 
-matchToClaim (Just matches) =
+matchToClaim (Just match) =
   let
-    matchesArray = NonEmpty.toArray matches
+    matchesArray = NonEmpty.toArray match
   in
     case matchesArray of
       [ (Just _), (Just id), (Just x), (Just y), (Just width), (Just height) ] -> do
