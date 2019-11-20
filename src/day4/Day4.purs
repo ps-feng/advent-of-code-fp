@@ -1,56 +1,72 @@
 module Day4
   ( day4Part1
+  , day4Part2
+  , buildGuardIDToSleepingSchedule
+  , sortedIntArrayMode
   , Event
-  , parseEventDateTime
-  , parseEventType
-  , EventType
   ) where
 
-import Data.DateTime
-import Data.Enum
-import Data.Hashable
-import Data.List.Types
-import Data.String
-import Data.String.Utils
-import Data.Time
-import Data.Time.Component
-import Debug.Trace
-import Prelude
-
-import Control.Semigroupoid ((>>>))
-import Data.Array (head, sort)
+import Prelude (class Eq, class Ord, class Show, bind, bottom, compare, discard, max, negate, pure, show, ($), (*), (+), (-), (/=), (<$>), (<>), (>), (>=), (>>>))
+import Control.MonadZero (guard)
+import Data.Array (concat, insert, length, range, sort)
 import Data.Array.NonEmpty as NonEmpty
-import Data.Either (Either(..), hush)
+import Data.DateTime (DateTime(..), date, time)
+import Data.Either (Either, hush, note)
+import Data.Enum (fromEnum)
 import Data.Foldable (foldl)
-import Data.Formatter.DateTime (Formatter, parseFormatString, unformat, format)
-import Data.Function ((#), flip)
-import Data.HashMap as M
-import Data.HashMap as M.HashMap
-import Data.HashSet as S
+import Data.Formatter.DateTime (Formatter, parseFormatString, unformat)
 import Data.Int (fromString)
-import Data.List (List, range)
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.String.Regex (match, regex)
+import Data.Map as M
+import Data.Maybe (Maybe(..))
+import Data.String.Regex (Regex, match, regex)
 import Data.String.Regex.Flags (noFlags)
-import Data.Traversable (sequence)
+import Data.String.Utils (startsWith)
+import Data.Time (minute)
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Util (readFileLines)
 
-day4Part1 :: String -> Effect (Either String (Array Event))
-day4Part1 filePath = do
+day4Part1 :: String -> Effect (Either String Int)
+day4Part1 filePath = solve filePath day4Part1Strategy
+
+day4Part2 :: String -> Effect (Either String Int)
+day4Part2 filePath = solve filePath day4Part2Strategy
+
+type SolvingStrategy
+  = (Array Event -> Maybe Int)
+
+solve :: String -> SolvingStrategy -> Effect (Either String Int)
+solve filePath strategy = do
   input <- readFileLines filePath
+  pure do
+    regex <- inputRegex
+    let
+      sortedEvents = sort <$> (traverse (match regex >>> matchToEvent) input)
+    events <- note "Failed to parse claims" sortedEvents
+    note "Failed to find result" $ strategy events
+
+day4Part1Strategy :: Array Event -> Maybe Int
+day4Part1Strategy events = do
   let
-    eitherRegex = regex "\\[(\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2})\\]\\s(Guard\\s#(\\d+)\\sbegins\\sshift|falls\\sasleep|wakes\\sup)" noFlags
-  pure case eitherRegex of
-    Left error -> Left error
-    Right r ->
-      let
-        events = sort <$> (sequence $ map (match r >>> matchToEvent) input)
-      in
-        case events of
-          Just theEvents -> Right theEvents
-          Nothing -> Left "Empty claims"
+    sleepingSchedule = buildGuardIDToSleepingSchedule events
+  let
+    sleptMostGuardID = findGuardWithMostSleepingMinutes sleepingSchedule
+  mostSleptMinute <- minuteGuardSpentMostSleeping sleptMostGuardID sleepingSchedule
+  pure $ sleptMostGuardID * mostSleptMinute.minute
+
+day4Part2Strategy :: Array Event -> Maybe Int
+day4Part2Strategy events = do
+  let
+    sleepingSchedule = buildGuardIDToSleepingSchedule events
+  let
+    allMostSleptMins = findAllGuardToMostSleptMinute sleepingSchedule
+  let
+    Tuple guardID { minute } = findMostSleptGuardIDAndMinute allMostSleptMins
+  pure $ guardID * minute
+
+inputRegex :: Either String Regex
+inputRegex = regex "\\[(\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2})\\]\\s(Guard\\s#(\\d+)\\sbegins\\sshift|falls\\sasleep|wakes\\sup)" noFlags
 
 data EventType
   = BeginsShift Int
@@ -116,13 +132,16 @@ type GuardID
   = Int
 
 type SleepingMinutes
-  = S.HashSet Minute
+  = Array Int
 
 type GuardSleepingSchedule
-  = M.HashMap Date SleepingMinutes
+  = Array SleepingMinutes
 
 type GuardIDToSleepingSchedule
-  = M.HashMap GuardID GuardSleepingSchedule
+  = M.Map GuardID GuardSleepingSchedule
+
+type SleptMinute
+  = { minute :: Int, times :: Int }
 
 --- [1518-11-01 00:00] Guard #10 begins shift  -- emptyMap, 10, 1518-11-01 00:00
 --- [1518-11-01 00:05] falls asleep            -- emptyMap, 10, 1518-11-01 00:05
@@ -150,27 +169,117 @@ buildGuardIDToSleepingSchedule events =
         lastEventDate = date acc.lastEventDateTime
 
         sleepingMinutes :: SleepingMinutes
-        sleepingMinutes =
-          range (fromEnum sleepingStartingMinute) (fromEnum sleepingEndingMinute - 1)
-            # map toEnum
-            # sequence
-            # fromMaybe Nil -- safe but incorrect... oh well
-            # S.fromFoldable
-        
+        sleepingMinutes = range (fromEnum sleepingStartingMinute) (fromEnum sleepingEndingMinute - 1)
+
         eventDate = date event.dateTime
 
         newResult :: GuardIDToSleepingSchedule
-        newResult = M.alter (\maybeSchedule -> 
-          case maybeSchedule of
-            Nothing -> Just $ M.singleton lastEventDate sleepingMinutes
-            Just schedule -> Just $ M.alter (\maybeSleepingMinutes -> Just sleepingMinutes
-              -- case maybeSleepingMinutes of
-              --   Nothing -> Just sleepingMinutes
-              --   Just prevSleepingMinutes -> Just $ M.union prevSleepingMinutes sleepingMinutes
-            ) lastEventDate schedule :: Maybe GuardSleepingSchedule
-        ) acc.guardID acc.result
+        newResult =
+          M.alter
+            ( \maybeSchedule -> case maybeSchedule of
+                Nothing -> Just $ [ sleepingMinutes ]
+                Just schedule -> Just $ sleepingMinutes `insert` schedule
+            )
+            acc.guardID
+            acc.result
       in
         { result: newResult
         , guardID: acc.guardID
         , lastEventDateTime: event.dateTime
         }
+
+findGuardWithMostSleepingMinutes :: GuardIDToSleepingSchedule -> GuardID
+findGuardWithMostSleepingMinutes guardIdToSleepingSchedule =
+  let
+    result = foldl updateMostSleepingGuard { guardID: -1, numberOfSleepingMinutes: 0 } sleepingSchedule
+  in
+    result.guardID
+  where
+  updateMostSleepingGuard acc (Tuple guardID schedule) =
+    let
+      sleepingMinutes = totalAmountOfSleepingMinutes schedule
+    in
+      if sleepingMinutes > acc.numberOfSleepingMinutes then
+        { guardID: guardID, numberOfSleepingMinutes: sleepingMinutes }
+      else
+        acc
+
+  sleepingSchedule :: Array (Tuple GuardID GuardSleepingSchedule)
+  sleepingSchedule = M.toUnfoldable guardIdToSleepingSchedule
+
+  totalAmountOfSleepingMinutes :: GuardSleepingSchedule -> Int
+  totalAmountOfSleepingMinutes schedule = length $ concat schedule
+
+findAllGuardToMostSleptMinute :: GuardIDToSleepingSchedule -> Array (Tuple GuardID SleptMinute)
+findAllGuardToMostSleptMinute guardIdToSleepingSchedule =
+  foldl
+    ( \acc (Tuple guardID schedule) ->
+        let
+          maybeMostSleptMinute = minuteGuardSpentMostSleeping guardID guardIdToSleepingSchedule
+        in
+          case maybeMostSleptMinute of
+            Nothing -> acc
+            Just mostSleptMinute -> (Tuple guardID mostSleptMinute) `insert` acc
+    )
+    []
+    sleepingSchedule
+  where
+  sleepingSchedule :: Array (Tuple GuardID GuardSleepingSchedule)
+  sleepingSchedule = M.toUnfoldable guardIdToSleepingSchedule
+
+minuteGuardSpentMostSleeping :: GuardID -> GuardIDToSleepingSchedule -> Maybe SleptMinute
+minuteGuardSpentMostSleeping guardID guardIdToSleepingSchedule = do
+  sleepingSchedule <- M.lookup guardID guardIdToSleepingSchedule
+  let
+    sortedMinutes = sort $ concat sleepingSchedule
+  let
+    sleptMinute = sortedIntArrayMode sortedMinutes
+  guard $ sleptMinute.minute >= 0
+  pure sleptMinute
+
+findMostSleptGuardIDAndMinute :: Array (Tuple GuardID SleptMinute) -> (Tuple GuardID SleptMinute)
+findMostSleptGuardIDAndMinute array = foldl maxSlept (Tuple (-1) { minute: -1, times: 0 }) array
+  where
+  maxSlept acc@(Tuple _ { times: accTimes }) elem@(Tuple _ { times: elemTimes }) =
+    if accTimes >= elemTimes then
+      acc
+    else
+      elem
+
+sortedIntArrayMode :: Array Int -> { minute :: Int, times :: Int }
+sortedIntArrayMode array =
+  let
+    result = foldl maxAccumulator { number: -1, curCount: 0, maxNumber: -1, maxCount: 0 } array
+  in
+    { minute: result.maxNumber, times: result.maxCount }
+  where
+  maxAccumulator acc elem =
+    if elem /= acc.number then
+      updateWithNewNumber acc elem
+    else
+      incrementCounter acc elem
+
+  updateWithNewNumber acc elem =
+    { number: elem
+    , curCount: 1
+    , maxNumber: newMaxNumber acc elem
+    , maxCount: acc.maxCount
+    }
+
+  incrementCounter acc elem =
+    let
+      newCount = acc.curCount + 1
+
+      newMaxCount = max newCount acc.maxCount
+    in
+      acc
+        { curCount = newCount
+        , maxNumber = if newMaxCount > acc.maxCount then elem else acc.maxNumber
+        , maxCount = newMaxCount
+        }
+
+  newMaxNumber acc elem =
+    let
+      newMaxCount = max 1 acc.maxCount
+    in
+      if newMaxCount > acc.maxCount then elem else acc.maxNumber
