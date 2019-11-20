@@ -6,15 +6,15 @@ module Day4
   , Event
   ) where
 
-import Prelude (class Eq, class Ord, class Show, bind, bottom, compare, discard, max, negate, pure, show, ($), (*), (+), (-), (/=), (<$>), (<>), (>), (>=), (>>>))
-import Control.MonadZero (guard)
-import Data.Array (concat, insert, length, range, sort)
+import Prelude (class Eq, class Ord, class Show, bind, bottom, compare, negate, otherwise, pure, show, (#), ($), (*), (-), (<$>), (<>), (>), (>=), (>>>))
+import Data.Array (concat, group, insert, length, range, sort)
 import Data.Array.NonEmpty as NonEmpty
-import Data.DateTime (DateTime(..), date, time)
+import Data.DateTime (DateTime(..), time)
 import Data.Either (Either, hush, note)
 import Data.Enum (fromEnum)
-import Data.Foldable (foldl)
+import Data.Foldable (foldl, maximumBy)
 import Data.Formatter.DateTime (Formatter, parseFormatString, unformat)
+import Data.Function (on)
 import Data.Int (fromString)
 import Data.Map as M
 import Data.Maybe (Maybe(..))
@@ -143,87 +143,61 @@ type GuardIDToSleepingSchedule
 type SleptMinute
   = { minute :: Int, times :: Int }
 
---- [1518-11-01 00:00] Guard #10 begins shift  -- emptyMap, 10, 1518-11-01 00:00
---- [1518-11-01 00:05] falls asleep            -- emptyMap, 10, 1518-11-01 00:05
---- [1518-11-01 00:25] wakes up                -- 10->{Day1->Set 5-24}, 10, 1518-11-01 00:25
 buildGuardIDToSleepingSchedule :: Array Event -> GuardIDToSleepingSchedule
 buildGuardIDToSleepingSchedule events =
-  let
-    startingValue = { result: M.empty, guardID: -1, lastEventDateTime: distantPast }
-
-    result = foldl calculateIntermediateResult startingValue events
-  in
-    result.result
+  foldl calculateIntermediateResult startingValue events
+    # _.result
   where
+  startingValue = { result: M.empty, guardID: -1, lastEventDateTime: distantPast }
+
   distantPast = DateTime bottom bottom
 
-  calculateIntermediateResult = \acc (Event event) -> case event.eventType of
-    BeginsShift guardID -> { result: acc.result, guardID: guardID, lastEventDateTime: event.dateTime }
-    FallsAsleep -> { result: acc.result, guardID: acc.guardID, lastEventDateTime: event.dateTime }
+  calculateIntermediateResult acc (Event event) = case event.eventType of
+    BeginsShift guardID -> acc { guardID = guardID, lastEventDateTime = event.dateTime }
+    FallsAsleep -> acc { lastEventDateTime = event.dateTime }
     WakesUp ->
       let
-        sleepingStartingMinute = minute $ time acc.lastEventDateTime
-
-        sleepingEndingMinute = minute $ time event.dateTime
-
-        lastEventDate = date acc.lastEventDateTime
-
-        sleepingMinutes :: SleepingMinutes
-        sleepingMinutes = range (fromEnum sleepingStartingMinute) (fromEnum sleepingEndingMinute - 1)
-
-        eventDate = date event.dateTime
-
-        newResult :: GuardIDToSleepingSchedule
-        newResult =
-          M.alter
-            ( \maybeSchedule -> case maybeSchedule of
-                Nothing -> Just $ [ sleepingMinutes ]
-                Just schedule -> Just $ sleepingMinutes `insert` schedule
-            )
-            acc.guardID
-            acc.result
+        newResult = M.alter updateSleepingSchedule acc.guardID acc.result
       in
-        { result: newResult
-        , guardID: acc.guardID
-        , lastEventDateTime: event.dateTime
-        }
+        acc { result = newResult, lastEventDateTime = event.dateTime }
+      where
+      updateSleepingSchedule maybeSchedule = case maybeSchedule of
+        Nothing -> Just $ [ sleepingMinutes ]
+        Just schedule -> Just $ sleepingMinutes `insert` schedule
+    where
+    sleepingStartingMinute = fromEnum $ minute $ time acc.lastEventDateTime
+
+    sleepingEndingMinute = fromEnum $ minute $ time event.dateTime
+
+    sleepingMinutes = range sleepingStartingMinute (sleepingEndingMinute - 1)
 
 findGuardWithMostSleepingMinutes :: GuardIDToSleepingSchedule -> GuardID
 findGuardWithMostSleepingMinutes guardIdToSleepingSchedule =
-  let
-    result = foldl updateMostSleepingGuard { guardID: -1, numberOfSleepingMinutes: 0 } sleepingSchedule
-  in
-    result.guardID
+  foldl updateMostSleepingGuard { guardID: -1, numberOfSleepingMinutes: 0 } sleepingSchedule
+    # _.guardID
   where
   updateMostSleepingGuard acc (Tuple guardID schedule) =
-    let
-      sleepingMinutes = totalAmountOfSleepingMinutes schedule
-    in
-      if sleepingMinutes > acc.numberOfSleepingMinutes then
-        { guardID: guardID, numberOfSleepingMinutes: sleepingMinutes }
-      else
-        acc
+    if totalAmountOfSleepingMinutes > acc.numberOfSleepingMinutes then
+      { guardID: guardID, numberOfSleepingMinutes: totalAmountOfSleepingMinutes }
+    else
+      acc
+    where
+    totalAmountOfSleepingMinutes = length $ concat schedule
 
   sleepingSchedule :: Array (Tuple GuardID GuardSleepingSchedule)
   sleepingSchedule = M.toUnfoldable guardIdToSleepingSchedule
 
-  totalAmountOfSleepingMinutes :: GuardSleepingSchedule -> Int
-  totalAmountOfSleepingMinutes schedule = length $ concat schedule
-
 findAllGuardToMostSleptMinute :: GuardIDToSleepingSchedule -> Array (Tuple GuardID SleptMinute)
-findAllGuardToMostSleptMinute guardIdToSleepingSchedule =
-  foldl
-    ( \acc (Tuple guardID schedule) ->
-        let
-          maybeMostSleptMinute = minuteGuardSpentMostSleeping guardID guardIdToSleepingSchedule
-        in
-          case maybeMostSleptMinute of
-            Nothing -> acc
-            Just mostSleptMinute -> (Tuple guardID mostSleptMinute) `insert` acc
-    )
-    []
-    sleepingSchedule
+findAllGuardToMostSleptMinute guardIdToSleepingSchedule = foldl updateGuards [] sleepingSchedule
   where
+  updateGuards acc (Tuple guardID schedule) =
+    let
+      maybeMostSleptMinute = minuteGuardSpentMostSleeping guardID guardIdToSleepingSchedule
+    in
+      case maybeMostSleptMinute of
+        Nothing -> acc
+        Just mostSleptMinute -> (Tuple guardID mostSleptMinute) `insert` acc
+
   sleepingSchedule :: Array (Tuple GuardID GuardSleepingSchedule)
   sleepingSchedule = M.toUnfoldable guardIdToSleepingSchedule
 
@@ -232,54 +206,19 @@ minuteGuardSpentMostSleeping guardID guardIdToSleepingSchedule = do
   sleepingSchedule <- M.lookup guardID guardIdToSleepingSchedule
   let
     sortedMinutes = sort $ concat sleepingSchedule
-  let
-    sleptMinute = sortedIntArrayMode sortedMinutes
-  guard $ sleptMinute.minute >= 0
-  pure sleptMinute
+  { number: number, times: times } <- sortedIntArrayMode sortedMinutes
+  pure { minute: number, times: times }
 
 findMostSleptGuardIDAndMinute :: Array (Tuple GuardID SleptMinute) -> (Tuple GuardID SleptMinute)
 findMostSleptGuardIDAndMinute array = foldl maxSlept (Tuple (-1) { minute: -1, times: 0 }) array
   where
-  maxSlept acc@(Tuple _ { times: accTimes }) elem@(Tuple _ { times: elemTimes }) =
-    if accTimes >= elemTimes then
-      acc
-    else
-      elem
+  maxSlept acc@(Tuple _ { times: accTimes }) elem@(Tuple _ { times: elemTimes })
+    | accTimes >= elemTimes = acc
+    | otherwise = elem
 
-sortedIntArrayMode :: Array Int -> { minute :: Int, times :: Int }
-sortedIntArrayMode array =
-  let
-    result = foldl maxAccumulator { number: -1, curCount: 0, maxNumber: -1, maxCount: 0 } array
-  in
-    { minute: result.maxNumber, times: result.maxCount }
-  where
-  maxAccumulator acc elem =
-    if elem /= acc.number then
-      updateWithNewNumber acc elem
-    else
-      incrementCounter acc elem
-
-  updateWithNewNumber acc elem =
-    { number: elem
-    , curCount: 1
-    , maxNumber: newMaxNumber acc elem
-    , maxCount: acc.maxCount
-    }
-
-  incrementCounter acc elem =
-    let
-      newCount = acc.curCount + 1
-
-      newMaxCount = max newCount acc.maxCount
-    in
-      acc
-        { curCount = newCount
-        , maxNumber = if newMaxCount > acc.maxCount then elem else acc.maxNumber
-        , maxCount = newMaxCount
-        }
-
-  newMaxNumber acc elem =
-    let
-      newMaxCount = max 1 acc.maxCount
-    in
-      if newMaxCount > acc.maxCount then elem else acc.maxNumber
+sortedIntArrayMode :: Array Int -> Maybe { number :: Int, times :: Int }
+sortedIntArrayMode array = do
+  longestGroup <-
+    group array
+      # maximumBy (compare `on` NonEmpty.length)
+  pure { number: NonEmpty.head longestGroup, times: NonEmpty.length longestGroup }
