@@ -66,7 +66,7 @@ day4Part2Strategy events = do
   pure $ guardID * minute
 
 inputRegex :: Either String Regex
-inputRegex = regex "\\[(\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2})\\]\\s(Guard\\s#(\\d+)\\sbegins\\sshift|falls\\sasleep|wakes\\sup)" noFlags
+inputRegex = regex "\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2})\\] (Guard #(\\d+) begins shift|falls asleep|wakes up)" noFlags
 
 data EventType
   = BeginsShift Int

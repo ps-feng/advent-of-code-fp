@@ -19,7 +19,7 @@ import Data.Int (fromString)
 import Data.List (List, range)
 import Data.Maybe (Maybe(..))
 import Data.Ord ((>))
-import Data.String.Regex (match, regex)
+import Data.String.Regex (Regex, match, regex)
 import Data.String.Regex.Flags (noFlags)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
@@ -31,7 +31,7 @@ day3Part1 :: String -> Effect (Either String Int)
 day3Part1 filePath = do
   input <- readFileLines filePath
   let
-    eitherRegex = regex "#(\\d+)\\s@\\s(\\d+),(\\d+):\\s(\\d+)x(\\d+)" noFlags
+    eitherRegex = inputRegex
   pure case eitherRegex of
     Left error -> Left error
     Right r ->
@@ -46,7 +46,7 @@ day3Part2 :: String -> Effect (Either String Int)
 day3Part2 filePath = do
   input <- readFileLines filePath
   let
-    eitherRegex = regex "#(\\d+)\\s@\\s(\\d+),(\\d+):\\s(\\d+)x(\\d+)" noFlags
+    eitherRegex = inputRegex
   pure case eitherRegex of
     Left error -> Left error
     Right r ->
@@ -59,6 +59,9 @@ day3Part2 filePath = do
         case maybeFinalClaimId of
           Just id -> Right id
           _ -> Left "Could not parse input or didn't find id"
+
+inputRegex :: Either String Regex
+inputRegex = regex "#(\\d+) @ (\\d+),(\\d+): (\\d+)x(\\d+)" noFlags
 
 newtype Claim
   = Claim
