@@ -1,35 +1,28 @@
 module Day5
   ( day5Part1
+  , day5Part2
   ) where
 
-import Data.Natural
-import Debug.Trace
-import Prelude
-import Data.Array (concat, group, insert, length, range, sort)
-import Data.Array.NonEmpty as NonEmpty
-import Data.DateTime (DateTime(..), time)
-import Data.Either (Either, hush, note)
-import Data.Enum (fromEnum)
-import Data.Foldable (foldl, maximumBy)
-import Data.Formatter.DateTime (Formatter, parseFormatString, unformat)
+import Data.Array (fromFoldable)
+import Data.Foldable (fold, foldr, minimumBy)
 import Data.Function (on)
-import Data.Int (fromString)
-import Data.Map as M
+import Data.List as L
+import Data.List.Types ((:))
 import Data.Maybe (Maybe(..))
+import Data.Set as S
 import Data.String as String
 import Data.String.Common (toLower)
-import Data.String.Regex (Regex, match, regex)
-import Data.String.Regex.Flags (noFlags)
-import Data.String.Utils (startsWith, fromCharArray, toCharArray)
-import Data.Time (minute)
+import Data.String.Utils (filter, toCharArray)
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..))
-import Data.ZipperArray as Z
 import Effect (Effect)
+import Prelude
 import Util (readTextFile)
 
 day5Part1 :: String -> Effect Int
-day5Part1 filePath = solve filePath part1Reactor
+day5Part1 filePath = solve filePath regularPolymerReactor
+
+day5Part2 :: String -> Effect Int
+day5Part2 filePath = solve filePath shortestPolymerReactor
 
 type Reactor
   = (String -> Maybe String)
@@ -41,27 +34,55 @@ solve filePath reactor = do
     Nothing -> pure (-1)
     Just polymer -> pure $ String.length polymer
 
-part1Reactor :: String -> Maybe String
-part1Reactor polymer = do
-  initialZipper <- Z.fromArray $ toCharArray polymer
-  finalZipper <- part1Reactor' initialZipper
-  pure $ fromCharArray $ Z.toArray finalZipper
+regularPolymerReactor :: Reactor
+regularPolymerReactor = polymerReactor Nothing
 
-part1Reactor' :: Z.ZipperArray String -> Maybe (Z.ZipperArray String)
-part1Reactor' zipper = do
-  case Z.next zipper of
-    Nothing -> Just zipper
-    Just next ->
-      if canReact (Z.current zipper) next then case delete2Chars zipper of
-        Nothing -> Nothing
-        Just newZipper -> part1Reactor' newZipper
-      else case Z.goNext zipper of
-        Nothing -> Just zipper
-        Just newZipper -> part1Reactor' newZipper
+uniqueChars :: String -> Array String
+uniqueChars input =
+  toLower input
+    # toCharArray
+    # S.fromFoldable
+    # fromFoldable
+
+shortestPolymerReactor :: Reactor
+shortestPolymerReactor input =
+  let
+    charsToIgnore = uniqueChars input
+
+    reactions :: Maybe (Array String)
+    reactions = traverse (\char -> polymerReactor (Just char) input) charsToIgnore
+  in
+    case reactions of
+      Nothing -> Nothing
+      Just strings -> minimumBy (compare `on` String.length) strings
+
+polymerReactor :: Maybe String -> Reactor
+polymerReactor maybeCharToIgnore polymer =
+  let
+    filteredPolymer = case maybeCharToIgnore of
+      Nothing -> polymer
+      Just charToIgnore -> filter (\c -> toLower c /= toLower charToIgnore) polymer
+
+    polymerArr = toCharArray filteredPolymer
+  in
+    --runSlowAlgorithm polymerArr -- this was the first slow version using ZipperArray
+    Just $ runFastAlgorithm polymerArr
+
+runFastAlgorithm :: Array String -> String
+runFastAlgorithm polymerArr = polymerReactorFast $ L.fromFoldable polymerArr
+
+-- Inspired by https://github.com/glguy/advent2018/blob/master/execs/Day05.hs
+polymerReactorFast :: L.List String -> String
+polymerReactorFast polymer =
+  let
+    str = foldr step (L.singleton "") polymer
+  in
+    fold str
   where
-  delete2Chars =
-    deleteCurrent Z.DeleteFocusedItemFocusBumpPolicyGoNext
-      >=> deleteCurrent Z.DeleteFocusedItemFocusBumpPolicyGoPrev
+  step x (y : ys)
+    | canReact x y = ys
+
+  step x ys = x : ys
 
 canReact :: String -> String -> Boolean
 canReact a b =
@@ -70,19 +91,42 @@ canReact a b =
   else
     toLower a == toLower b
 
-deleteCurrent :: forall a. Z.DeleteFocusedItemFocusBumpPolicy -> Z.ZipperArray a -> Maybe (Z.ZipperArray a)
-deleteCurrent bumpPolicy zipper = do
-  newZipper <- Z.fromArray $ preceding <> succeeding
-  Z.goIndex newIdx newZipper
-  where
-  preceding = Z.prec zipper
+-- FIRST SOLUTION: VERY SLOW, uses ZipperArray
+-- runSlowAlgorithm :: Array String -> Maybe String
+-- runSlowAlgorithm polymerArr = do
+--   initialZipper <- Z.fromArray polymerArr
+--   finalZipper <- polymerReactor' initialZipper
+--   pure $ fromCharArray $ Z.toArray finalZipper
 
-  succeeding = Z.succ zipper
+-- polymerReactor' :: Z.ZipperArray String -> Maybe (Z.ZipperArray String)
+-- polymerReactor' zipper = do
+--   case Z.next zipper of
+--     Nothing -> Just zipper
+--     Just next ->
+--       if canReact (Z.current zipper) next then case delete2Chars zipper of
+--         Nothing -> Nothing
+--         Just newZipper -> polymerReactor' newZipper
+--       else case Z.goNext zipper of
+--         Nothing -> Just zipper
+--         Just newZipper -> polymerReactor' newZipper
+--   where
+--   delete2Chars =
+--     deleteCurrent Z.DeleteFocusedItemFocusBumpPolicyGoNext
+--       >=> deleteCurrent Z.DeleteFocusedItemFocusBumpPolicyGoPrev
 
-  curIdx = natToInt $ Z.curIndex zipper
+-- deleteCurrent :: forall a. Z.DeleteFocusedItemFocusBumpPolicy -> Z.ZipperArray a -> Maybe (Z.ZipperArray a)
+-- deleteCurrent bumpPolicy zipper = do
+--   newZipper <- Z.fromArray $ preceding <> succeeding
+--   Z.goIndex newIdx newZipper
+--   where
+--   preceding = Z.prec zipper
 
-  newIdx =
-    intToNat
-      $ case bumpPolicy of
-          Z.DeleteFocusedItemFocusBumpPolicyGoPrev -> max 0 (curIdx - 1)
-          Z.DeleteFocusedItemFocusBumpPolicyGoNext -> min (Z.length zipper - 2) curIdx
+--   succeeding = Z.succ zipper
+
+--   curIdx = natToInt $ Z.curIndex zipper
+
+--   newIdx =
+--     intToNat
+--       $ case bumpPolicy of
+--           Z.DeleteFocusedItemFocusBumpPolicyGoPrev -> max 0 (curIdx - 1)
+--           Z.DeleteFocusedItemFocusBumpPolicyGoNext -> min (Z.length zipper - 2) curIdx
