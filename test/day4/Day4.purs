@@ -14,9 +14,9 @@ main = do
 testDay4Part1 :: Effect Unit
 testDay4Part1 = do
   number <- day4Part1 "test/day4/input.txt"
-  assertEqual { actual: (Right 19874), expected: number }
+  assertEqual { actual: number, expected: (Right 19874) }
 
 testDay4Part2 :: Effect Unit
 testDay4Part2 = do
   number <- day4Part2 "test/day4/input.txt"
-  assertEqual { actual: (Right 22687), expected: number }
+  assertEqual { actual: number, expected: (Right 22687) }
