@@ -128,4 +128,4 @@ positionsAtDistance location distance =
   in
     top <> bottom
   where
-    pairToCoord a b = { x: location.x + a, y: location.x + b }
+    pairToCoord a b = { x: location.x + a, y: location.y + b }
