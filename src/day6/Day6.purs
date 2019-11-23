@@ -10,7 +10,7 @@ module Day6
   , positionsAtDistance
   ) where
 
-import Data.Array ((!!), (..), fromFoldable, length, nub, replicate, slice, zip)
+import Data.Array ((!!), (..), fromFoldable, length, nub, replicate, slice, zip, zipWith)
 import Data.Foldable (fold, foldr, maximumBy, minimumBy)
 import Data.Function (on)
 import Data.Int (fromString)
@@ -123,9 +123,9 @@ positionsAtDistance location distance =
     xRange = (-distance .. 0) <> (1 .. distance)
     len = length yRangeBottom
     -- first and last elements match with top and bottom, so we slice it
-    top = map tupleToCoord $ slice 1 (len-1) $ zip xRange yRangeTop
-    bottom = map tupleToCoord $ zip xRange yRangeBottom
+    top = slice 1 (len-1) $ zipWith pairToCoord xRange yRangeTop
+    bottom = zipWith pairToCoord xRange yRangeBottom
   in
     top <> bottom
   where
-    tupleToCoord t = { x: location.x + fst t, y: location.x + snd t }
+    pairToCoord a b = { x: location.x + a, y: location.x + b }
