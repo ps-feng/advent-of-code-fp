@@ -3,43 +3,21 @@ module Day1
   , day1Part2
   ) where
 
+import Prelude
+
+import Data.Either (Either)
 import Data.List (List(..), foldl, fromFoldable, (:))
-import Prelude (bind, map, pure, (+), (<$>))
-import Data.Maybe (Maybe(..))
-import Data.Number (fromString, nan)
+import Data.Number (nan)
 import Data.Set as S
-import Data.Traversable (sequence)
 import Effect (Effect)
-import Util
+import Util (parseAndApply, parseArrayOfNumbers)
 
-day1Part1 :: Effect Number
-day1Part1 = do
-  input <- readFileLines "test/day1/input.txt"
-  let
-    parsed :: Array (Maybe Number)
-    parsed = fromString <$> input
-  let
-    floats :: Maybe (Array Number)
-    floats = sequence parsed
-  let
-    result = foldl (+) 0.0 <$> floats
-  case result of
-    Just x -> pure x
-    Nothing -> pure nan
+day1Part1 :: Effect (Either String Number)
+day1Part1 = parseAndApply "test/day1/input.txt" parseArrayOfNumbers (foldl (+) 0.0)
 
-day1Part2 :: Effect Number
-day1Part2 = do
-  input <- readFileLines "test/day1/input.txt"
-  let
-    parsed = fromString <$> input
-  let
-    floats = sequence parsed
-  let
-    maybeNumber = map day1Part2' floats
-  case maybeNumber of
-    Just x -> pure x
-    Nothing -> pure nan
-
+day1Part2 :: Effect (Either String Number)
+day1Part2 = parseAndApply "test/day1/input.txt" parseArrayOfNumbers day1Part2'
+  
 day1Part2' :: Array Number -> Number
 day1Part2' [] = nan
 
