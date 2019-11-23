@@ -17,13 +17,15 @@ main = do
 
 testa :: Effect Unit
 testa = do
-  Console.time "b"
-  let sortedFast = sort $ positionsAtDistance (makeCoord 10 10) 10000
-  Console.timeEnd "b"
-  Console.time "a"
-  let sortedBrute = sort $ bruteForceCoordinatesFromPositionAtDistance (makeCoord 10 10) 10000
-  Console.timeEnd "a"
-  assertEqual { actual: sortedFast, expected: sortedBrute }
+  Console.time "Lelle"
+  let a = sort $ newPositionsAtDistance (makeCoord 10 10) 10000
+  Console.log $ show $ length a
+  Console.timeEnd "Lelle"
+  Console.time "Pin"
+  let b = sort $ positionsAtDistance (makeCoord 10 10) 10000
+  Console.log $ show $ length b
+  Console.timeEnd "Pin"
+  assertEqual { actual: a, expected: b }
 
 testDay6Part1a :: Effect Unit
 testDay6Part1a = do

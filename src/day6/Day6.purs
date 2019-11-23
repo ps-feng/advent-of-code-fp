@@ -8,9 +8,10 @@ module Day6
   , bruteForceCoordinatesFromPositionAtDistance
   , bruteForcePositionAtDistance
   , positionsAtDistance
+  , newPositionsAtDistance
   ) where
 
-import Data.Array ((!!), (..), fromFoldable, length, nub, replicate, slice, zip)
+import Data.Array ((!!), (..), fromFoldable, length, nub, replicate, slice, zip, zipWith)
 import Data.Foldable (fold, foldr, maximumBy, minimumBy)
 import Data.Function (on)
 import Data.Int (fromString)
@@ -87,6 +88,21 @@ bruteForcePositionAtDistance distance = do
 bruteForceCoordinatesFromPositionAtDistance :: Coord -> Int -> Array Coord
 bruteForceCoordinatesFromPositionAtDistance { x: px, y: py } distance =
   map (\{ x, y } -> { x: px + x, y: py + y }) $ bruteForcePositionAtDistance distance
+
+newPositionsAtDistance :: Coord -> Int -> Array Coord
+newPositionsAtDistance coord 0 = [coord]
+newPositionsAtDistance { x: rx, y: ry } distance = 
+  newPositionsAtDistance'
+  where
+    newPositionsAtDistance' =
+      let
+        distanceMinusOne = (distance - 1)
+        negateDistance = negate distance
+        negateDistanceMinusOne = negate distanceMinusOne
+        xs = 0 .. distanceMinusOne <> distance .. negateDistance <> negateDistanceMinusOne .. (-1)
+        ys = negateDistance .. distanceMinusOne <> distance .. negateDistanceMinusOne
+      in
+        zipWith (\x y -> { x: x + rx, y: y + ry }) xs ys
 
 boundingBox :: Array Coord -> { maxX :: Int, maxY :: Int}
 boundingBox locations =
