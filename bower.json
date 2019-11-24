@@ -20,7 +20,6 @@
     "purescript-zipperarray": "^1.1.0"
   },
   "devDependencies": {
-    "purescript-psci-support": "^4.0.0",
-    "purescript-benchotron": "^7.0.1"
+    "purescript-psci-support": "^4.0.0"
   }
 }

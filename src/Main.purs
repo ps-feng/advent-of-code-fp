@@ -2,7 +2,8 @@ module Main where
 
 import Prelude
 import Effect (Effect)
-import Benchmarks (runAllBenchmarks)
+import Effect.Console (log)
+-- import Benchmarks (runAllBenchmarks)
 
 main :: Effect Unit
-main = runAllBenchmarks
+main = log "Hello!"
