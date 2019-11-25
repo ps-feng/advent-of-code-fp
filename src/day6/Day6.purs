@@ -5,8 +5,6 @@ module Day6
   , LocationInfo(..)
   , Coord(..)
   , makeCoord
-  , bruteForceCoordinatesFromPositionAtDistance
-  , bruteForcePositionAtDistance
   , positionsAtDistance
   , newPositionsAtDistance
   ) where
@@ -75,35 +73,6 @@ isInBoundingBox maxX maxY coord =
   0 <= coord.x && coord.x < maxX &&
   0 <= coord.y && coord.y < maxY
 
-bruteForcePositionAtDistance :: Int -> Array Coord
-bruteForcePositionAtDistance distance = do
-  x <- (negate distance) .. distance
-  y <- (negate distance) .. distance
-  guard $ (abs x) + (abs y)  == distance
-  pure { x: x, y: y }
-  where 
-    abs :: Int -> Int
-    abs x = if x >= zero then x else negate x
-
-bruteForceCoordinatesFromPositionAtDistance :: Coord -> Int -> Array Coord
-bruteForceCoordinatesFromPositionAtDistance { x: px, y: py } distance =
-  map (\{ x, y } -> { x: px + x, y: py + y }) $ bruteForcePositionAtDistance distance
-
-newPositionsAtDistance :: Coord -> Int -> Array Coord
-newPositionsAtDistance coord 0 = [coord]
-newPositionsAtDistance { x: rx, y: ry } distance = 
-  newPositionsAtDistance'
-  where
-    newPositionsAtDistance' =
-      let
-        distanceMinusOne = (distance - 1)
-        negateDistance = negate distance
-        negateDistanceMinusOne = negate distanceMinusOne
-        xs = 0 .. distanceMinusOne <> distance .. negateDistance <> negateDistanceMinusOne .. (-1)
-        ys = negateDistance .. distanceMinusOne <> distance .. negateDistanceMinusOne
-      in
-        zipWith (\x y -> { x: x + rx, y: y + ry }) xs ys
-
 boundingBox :: Array Coord -> { maxX :: Int, maxY :: Int}
 boundingBox locations =
   { maxX: maxX, maxY: maxY}
@@ -127,6 +96,24 @@ fillGrid :: Coord -> Int -> Grid -> Grid
 fillGrid coord distance grid =
   grid
 
+newPositionsAtDistance :: Coord -> Int -> Array Coord
+newPositionsAtDistance coord 0 = [coord]
+newPositionsAtDistance { x: rx, y: ry } distance = 
+  let
+    -- Given distance 2 for position (0, 0)
+    -- top ys:    0 -1 -2 -1  0
+    -- xs:       -2 -1  0  1  2
+    -- bottom ys: 0  1  2  1  0
+    -- We s merge top ys and bottom ys for more efficiency
+    distanceMinusOne = (distance - 1)
+    negateDistance = negate distance
+    negateDistanceMinusOne = negate distanceMinusOne
+    xs = 0 .. distanceMinusOne <> distance .. negateDistance <> negateDistanceMinusOne .. (-1)
+    ys = negateDistance .. distanceMinusOne <> distance .. negateDistanceMinusOne
+  in
+    zipWith (\x y -> { x: x + rx, y: y + ry }) xs ys
+
+-- Kept for benchmarking purposes
 positionsAtDistance :: Coord -> Int -> Array Coord
 positionsAtDistance location distance =
   let
@@ -145,3 +132,17 @@ positionsAtDistance location distance =
     top <> bottom
   where
     pairToCoord a b = { x: location.x + a, y: location.y + b }
+
+-- bruteForcePositionAtDistance :: Int -> Array Coord
+-- bruteForcePositionAtDistance distance = do
+--   x <- (negate distance) .. distance
+--   y <- (negate distance) .. distance
+--   guard $ (abs x) + (abs y)  == distance
+--   pure { x: x, y: y }
+--   where 
+--     abs :: Int -> Int
+--     abs x = if x >= zero then x else negate x
+
+-- bruteForceCoordinatesFromPositionAtDistance :: Coord -> Int -> Array Coord
+-- bruteForceCoordinatesFromPositionAtDistance { x: px, y: py } distance =
+--   map (\{ x, y } -> { x: px + x, y: py + y }) $ bruteForcePositionAtDistance distance
