@@ -9,26 +9,18 @@ module Day6
   , newPositionsAtDistance
   ) where
 
-import Data.Array ((!!), (..), fromFoldable, length, nub, replicate, slice, zip, zipWith)
-import Data.Foldable (fold, foldr, maximumBy, minimumBy)
+import Data.Array ((..), length, slice, zipWith)
+import Data.Foldable (maximumBy)
 import Data.Function (on)
 import Data.Int (fromString)
-import Data.List as L
-import Data.List.Types ((:))
-import Data.Map
+import Data.Map (Map)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Control.MonadZero
-import Data.Set as S
-import Data.String as String
-import Data.String.Common (toLower, split)
+import Data.String.Common (split)
 import Data.String.Pattern (Pattern(..))
-import Data.String.Utils (filter, toCharArray)
 import Data.Traversable (traverse)
-import Data.Tuple
 import Effect (Effect)
 import Prelude
 import Util (readFileLines)
-import Debug.Trace
 
 day6Part1 :: String -> Effect (Maybe Int)
 day6Part1 filePath = solve filePath (\_ -> 1)

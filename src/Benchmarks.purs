@@ -2,7 +2,7 @@ module Benchmarks
   -- ( runAllBenchmarks )
 where
 
-import Prelude
+-- import Prelude
 
 -- import Benchotron.Core (Benchmark, benchFn, mkBenchmark)
 -- import Benchotron.UI.Console (runSuite)

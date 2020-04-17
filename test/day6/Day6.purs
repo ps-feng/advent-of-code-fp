@@ -1,12 +1,12 @@
 module Test.Day6 where
 
-import Prelude
-import Data.Maybe
-import Day6
+import Data.Array (length, sort)
+import Data.Maybe (fromMaybe)
+import Day6 (day6Part1, day6Part2, makeCoord, newPositionsAtDistance, positionsAtDistance)
 import Effect (Effect)
-import Test.Assert (assertEqual)
 import Effect.Console as Console
-import Data.Array
+import Prelude
+import Test.Assert (assertEqual)
 
 main :: Effect Unit
 main = do
