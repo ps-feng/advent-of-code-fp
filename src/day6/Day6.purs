@@ -6,7 +6,6 @@ module Day6
   , Coord(..)
   , CoordState(..)
   , Location(..)
-  , makeCoord
   , prettyPrint
   ) where
 
@@ -94,41 +93,25 @@ solve filePath solver = do
     $ do
         locations <- traverse splitLineToCoord input
         pure $ solve' locations
-
-splitLineToCoord :: String -> Maybe Coord
-splitLineToCoord input = splitLineToCoord' $ split (Pattern ", ") input
   where
-  splitLineToCoord' [ x, y ] = makeCoord <$> (fromString x) <*> (fromString y)
+    splitLineToCoord :: String -> Maybe Coord
+    splitLineToCoord input = splitLineToCoord' $ split (Pattern ", ") input
+      where
+      splitLineToCoord' [ x, y ] = makeCoord <$> (fromString x) <*> (fromString y)
+        where
+          makeCoord :: Int -> Int -> Coord
+          makeCoord x' y' = { x: x', y: y' }
 
-  splitLineToCoord' _ = Nothing
+      splitLineToCoord' _ = Nothing
 
-solve' :: Array Location -> Int
-solve' locations =
-  let
-    bbox = boundingBox locations
-  in
-    maxArea bbox $ fillGrid bbox locations
+    solve' :: Array Location -> Int
+    solve' locations =
+      let
+        bbox = boundingBox locations
+      in
+        maxArea bbox $ fillGrid bbox locations
 
-makeCoord :: Int -> Int -> Coord
-makeCoord x y = { x: x, y: y }
-
-isInBoundingBox :: Int -> Int -> Coord -> Boolean
-isInBoundingBox maxX maxY coord =
-  0 <= coord.x && coord.x < maxX &&
-  0 <= coord.y && coord.y < maxY
-
-isAtBoundary :: Int -> Int -> Coord -> Boolean
-isAtBoundary maxX maxY coord =
-  coord.x == 0 || coord.x == maxX - 1 || coord.y == 0 || coord.y == maxY - 1
-
-boundingBox :: Array Coord -> BoundingBox
-boundingBox locations = { maxX: maxX, maxY: maxY }
-  where
-  maxX = fromMaybe 0 $ (_ + 1) <$> (_.x <$> maximumBy (compare `on` _.x) locations)
-
-  maxY = fromMaybe 0 $ (_ + 1) <$> (_.y <$> maximumBy (compare `on` _.y) locations)
-
--- Fill the grid
+-- Fill the grid:
 -- let setOfInfiniteLocations
 -- let mapOfNonInfiniteLocationToCount
 -- 
@@ -161,86 +144,33 @@ maxArea bbox grid =
   in
     foldl max 0 (values nonInfiniteLocationToCount)
 
-chunked :: forall a. Array a -> Int -> Array (Array a)
-chunked array len =
-  chunked' array []
-  where
-    chunked' :: Array a -> Array (Array a) -> Array (Array a)
-    chunked' arr intermediateArray =
-      if A.length arr == 0 then intermediateArray
-      else
-        let
-          newElems = A.take len arr :: Array a
-          leftOver = A.drop len arr
-          newIntermediateArray = A.snoc intermediateArray newElems
-        in
-          chunked' leftOver newIntermediateArray 
-
-prettyPrint :: Array Location -> Effect Unit
-prettyPrint locations = 
-  do
-    let bbox = boundingBox locations
-    let grid = fillGrid bbox locations
-    let list = 
-          do
-            y <- 0 A... (bbox.maxY - 1)
-            x <- 0 A... (bbox.maxX - 1)
-            let v = lookup { x, y } grid
-            pure $ case v of
-              Just (ClosestTo location _) -> "[" <> show location.x <> "," <> show location.y <> "]"
-              Just (ClosestToMultipleLocations _) -> "."
-              Nothing -> "?"
-    let lala = trace "lala" \_ -> chunked list (bbox.maxY - 1) :: Array (Array String)
-    let lines = map (foldl (\acc str -> acc <> ", " <> str) "") lala :: Array (String)
-    let loggedLines = map log lines :: Array (Effect Unit)
-    A.fold loggedLines
-
--- prettyPrint' :: Array Location -> Effect Unit
--- prettyPrint' locations = 
---   do
---     let bbox = boundingBox locations
---     let grid = fillGrid bbox locations
---     let list = 
---           do
---             y <- 0 .. (bbox.maxY - 1)
---             let v = map (\x -> log $ show x
---              -- lookup { x, y } grid
---               -- log $ case lookup {x, y} grid of
---               --   Just (ClosestTo location _) -> show location.x <> "_" <> show location.y
---               --   Just (ClosestToMultipleLocations _) -> "."
---               --   Nothing -> "?"
---             ) 0 .. (bbox.maxX - 1)
---             pure $ v
---     fold list
-
 fillGrid :: BoundingBox -> Array Location -> Grid
 fillGrid bbox locations =
-  let
-    isInBoundingBox' = isInBoundingBox bbox.maxX bbox.maxY
-    locationSet = S.fromFoldable locations
-  in
-    fillGrid' locationSet 1 isInBoundingBox' empty
-
-fillGrid' :: S.Set Location -> Distance -> (Coord -> Boolean) -> Grid -> Grid
-fillGrid' locations distance isInBoundingBox' currentGrid
-  | locations == S.empty = currentGrid
-  | otherwise =
-      let
-        Tuple newGrid newLocations = fillGrid'' locations distance isInBoundingBox' currentGrid
-      in
-        fillGrid' newLocations (distance + 1) isInBoundingBox' newGrid
-
-fillGrid'' :: S.Set Location -> Distance -> (Coord -> Boolean) -> Grid -> Tuple Grid (S.Set Location)
-fillGrid'' locations distance isInBoundingBox' currentGrid =
-  foldl go (Tuple currentGrid S.empty) locations
+  fillGrid' locationSet 1 empty
   where
-    go acc location =
-      let 
-        curUpdatableLocations = snd acc
-        (Tuple updatedGrid numberOfValidUpdates) = updateGridForCellsAtDistanceFromLocation isInBoundingBox' location distance (fst acc)
-      in case numberOfValidUpdates of
-        0 -> Tuple updatedGrid curUpdatableLocations
-        _ -> Tuple updatedGrid (S.insert location curUpdatableLocations)
+    locationSet = S.fromFoldable locations
+
+    fillGrid' :: S.Set Location -> Distance -> Grid -> Grid
+    fillGrid' locations' distance currentGrid
+      | locations' == S.empty = currentGrid
+      | otherwise =
+          let
+            Tuple newGrid newLocations = fillGrid'' locations' distance currentGrid
+          in
+            fillGrid' newLocations (distance + 1) newGrid
+
+    fillGrid'' :: S.Set Location -> Distance -> Grid -> Tuple Grid (S.Set Location)
+    fillGrid'' locations' distance currentGrid =
+      foldl go (Tuple currentGrid S.empty) locations'
+      where
+        go acc location =
+          let 
+            isInBoundingBox' = isInBoundingBox bbox.maxX bbox.maxY
+            curUpdatableLocations = snd acc
+            (Tuple updatedGrid numberOfValidUpdates) = updateGridForCellsAtDistanceFromLocation isInBoundingBox' location distance (fst acc)
+          in case numberOfValidUpdates of
+            0 -> Tuple updatedGrid curUpdatableLocations
+            _ -> Tuple updatedGrid (S.insert location curUpdatableLocations)
 
 updateGridForCellsAtDistanceFromLocation :: (Coord -> Boolean)  -- The bounding box to calculate if coord is valid (inside)
                                          -> Location            -- The location for which we are updating the grid
@@ -297,3 +227,71 @@ coordsAtDistanceFromCoord { x: rx, y: ry } distance =
         ys = negateDistance A... distanceMinusOne <> distance A... negateDistanceMinusOne
       in
         A.zipWith (\x y -> { x: x + rx, y: y + ry }) xs ys
+
+isInBoundingBox :: Int -> Int -> Coord -> Boolean
+isInBoundingBox maxX maxY coord =
+  0 <= coord.x && coord.x < maxX &&
+  0 <= coord.y && coord.y < maxY
+
+isAtBoundary :: Int -> Int -> Coord -> Boolean
+isAtBoundary maxX maxY coord =
+  coord.x == 0 || coord.x == maxX - 1 || coord.y == 0 || coord.y == maxY - 1
+
+boundingBox :: Array Coord -> BoundingBox
+boundingBox locations = { maxX: maxX, maxY: maxY }
+  where
+  maxX = fromMaybe 0 $ (_ + 1) <$> (_.x <$> maximumBy (compare `on` _.x) locations)
+
+  maxY = fromMaybe 0 $ (_ + 1) <$> (_.y <$> maximumBy (compare `on` _.y) locations)
+
+chunked :: forall a. Array a -> Int -> Array (Array a)
+chunked array len =
+  chunked' array []
+  where
+    chunked' :: Array a -> Array (Array a) -> Array (Array a)
+    chunked' arr intermediateArray =
+      if A.length arr == 0 then intermediateArray
+      else
+        let
+          newElems = A.take len arr :: Array a
+          leftOver = A.drop len arr
+          newIntermediateArray = A.snoc intermediateArray newElems
+        in
+          chunked' leftOver newIntermediateArray 
+
+prettyPrint :: Array Location -> Effect Unit
+prettyPrint locations = 
+  do
+    let bbox = boundingBox locations
+    let grid = fillGrid bbox locations
+    let list = 
+          do
+            y <- 0 A... (bbox.maxY - 1)
+            x <- 0 A... (bbox.maxX - 1)
+            let v = lookup { x, y } grid
+            pure $ case v of
+              Just (ClosestTo location _) -> "[" <> show location.x <> "," <> show location.y <> "]"
+              Just (ClosestToMultipleLocations _) -> "."
+              Nothing -> "?"
+    let lala = chunked list (bbox.maxY - 1) :: Array (Array String)
+    let lines = map (foldl (\acc str -> acc <> ", " <> str) "") lala :: Array (String)
+    let loggedLines = map log lines :: Array (Effect Unit)
+    A.fold loggedLines
+
+-- prettyPrint' :: Array Location -> Effect Unit
+-- prettyPrint' locations = 
+--   do
+--     let bbox = boundingBox locations
+--     let grid = fillGrid bbox locations
+--     let list = 
+--           do
+--             y <- 0 .. (bbox.maxY - 1)
+--             let v = map (\x -> log $ show x
+--              -- lookup { x, y } grid
+--               -- log $ case lookup {x, y} grid of
+--               --   Just (ClosestTo location _) -> show location.x <> "_" <> show location.y
+--               --   Just (ClosestToMultipleLocations _) -> "."
+--               --   Nothing -> "?"
+--             ) 0 .. (bbox.maxX - 1)
+--             pure $ v
+--     fold list
