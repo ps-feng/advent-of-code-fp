@@ -4,6 +4,7 @@ module Day6
   , fillGrid
   , isInBoundingBox
   , boundingBox
+  , maxArea
   , Coord(..)
   , CoordState(..)
   , Location(..)
@@ -14,11 +15,11 @@ import Prelude
 
 import Effect.Console (log)
 
-import Data.Array ((..), drop, fold, insert, length, snoc, take, zipWith) as A
+import Data.Array ((..), drop, fold, length, snoc, take, zipWith) as A
 import Data.Foldable (foldl, maximumBy)
 import Data.Function (on)
 import Data.Int (fromString)
-import Data.Map (Map, empty, insert, lookup, member, toUnfoldable, values)
+import Data.Map (Map, empty, insert, lookup, toUnfoldable, values) as M
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Set (Set, empty, fromFoldable, insert, isEmpty, member) as S
 import Data.String.Common (split)
@@ -27,7 +28,6 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
 import Util (readFileLines)
-import Debug.Trace (trace)
 
 -- Algorithm
 -- 1. Go through each location, one at a time:
@@ -39,11 +39,6 @@ import Debug.Trace (trace)
 --    - Count occurrences of each of the locations that are not infinite
 -- 3. Stop when we can't continue marking for any of the locations
 -- 4. Find out max count
-
-type MaxAreaAcc =
-  { infiniteLocations :: S.Set Location
-  , nonInfiniteLocationToCount :: Map Location Int
-  }
   
 type Coord
   = { x :: Int
@@ -64,7 +59,7 @@ instance showCoordState :: Show CoordState where
   show (ClosestToMultipleLocations distance) = "ClosestToMultipleLocations " <> show distance
 
 type Grid
-  = Map Coord CoordState
+  = M.Map Coord CoordState
 
 type GridUpdateResult
   = Tuple Grid Int
@@ -78,17 +73,14 @@ type BoundingBox
   , maxY :: Int 
   }
 
-type Solver
-  = (Array Location -> Int)
-
 day6Part1 :: String -> Effect (Maybe Int)
-day6Part1 filePath = solve filePath (\_ -> 1)
+day6Part1 filePath = solve filePath
 
 day6Part2 :: String -> Effect (Maybe Int)
-day6Part2 filePath = solve filePath (\_ -> 1)
+day6Part2 filePath = solve filePath
 
-solve :: String -> Solver -> Effect (Maybe Int)
-solve filePath solver = do
+solve :: String -> Effect (Maybe Int)
+solve filePath = do
   input <- readFileLines filePath
   pure
     $ do
@@ -122,32 +114,35 @@ solve filePath solver = do
 --   else alter (+1) coord mapOfNonInfiniteLocationToCount
 -- 
 -- maxBy { k, v -> v} mapOfNonInfiniteLocationToCount
+type MaxAreaAcc =
+  { infiniteLocations :: S.Set Location
+  , nonInfiniteLocationToCount :: M.Map Location Int
+  }
 
 maxArea :: BoundingBox -> Grid -> Int
 maxArea bbox grid =
-  let 
-    infiniteLocations = S.empty
-    nonInfiniteLocationToCount = empty
-    gridKeyValues = toUnfoldable grid :: Array (Tuple Coord CoordState)
+  let
+    gridKeyValues = M.toUnfoldable grid :: Array (Tuple Coord CoordState)
     { infiniteLocations: _, nonInfiniteLocationToCount } = 
-      foldl go { infiniteLocations: S.empty, nonInfiniteLocationToCount: empty } gridKeyValues
+      foldl go { infiniteLocations: S.empty, nonInfiniteLocationToCount: M.empty } gridKeyValues
         where
           isAtBoundary' = isAtBoundary bbox.maxX bbox.maxY
 
           go :: MaxAreaAcc -> Tuple Coord CoordState -> MaxAreaAcc
-          go acc@{ infiniteLocations, nonInfiniteLocationToCount } (Tuple coord _) =
-            if S.member coord infiniteLocations then acc
-            else if isAtBoundary' coord then acc { infiniteLocations = S.insert coord infiniteLocations }
-            else
-              case lookup coord nonInfiniteLocationToCount of
-                Just count -> acc { nonInfiniteLocationToCount = insert coord (count + 1) nonInfiniteLocationToCount}
-                Nothing -> acc { nonInfiniteLocationToCount = insert coord 1 nonInfiniteLocationToCount}
+          go acc@{ infiniteLocations, nonInfiniteLocationToCount } (Tuple coord (ClosestToMultipleLocations _)) = acc
+          go acc@{ infiniteLocations, nonInfiniteLocationToCount } (Tuple coord (ClosestTo location _))
+            | S.member coord infiniteLocations = acc
+            | isAtBoundary' coord = acc { infiniteLocations = S.insert location infiniteLocations }
+            | otherwise =
+                case M.lookup location nonInfiniteLocationToCount of
+                  Just count -> acc { nonInfiniteLocationToCount = M.insert location (count + 1) nonInfiniteLocationToCount }
+                  Nothing -> acc { nonInfiniteLocationToCount = M.insert location 1 nonInfiniteLocationToCount }
   in
-    foldl max 0 (values nonInfiniteLocationToCount)
+    1 + foldl max 0 (M.values nonInfiniteLocationToCount)
 
 fillGrid :: BoundingBox -> Array Location -> Grid
 fillGrid bbox locations =
-  fillGrid' locationSet 1 empty
+  fillGrid' locationSet 1 M.empty
   where
     locationSet = S.fromFoldable locations
 
@@ -188,9 +183,9 @@ updateGridForCellsAtDistanceFromLocation isInBoundingBox' initialLocations locat
       | S.member coord initialLocations = all
       | otherwise =
           let
-            currentCoordState = lookup coord theGrid
+            currentCoordState = M.lookup coord theGrid
             newState = mergeCoordState (ClosestTo location distance) currentCoordState
-            theGrid' = insert coord newState theGrid
+            theGrid' = M.insert coord newState theGrid
             numberOfValidUpdates' = 
               case newState of
                 (ClosestTo l _) | l == location -> numberOfValidUpdates + 1
@@ -273,7 +268,7 @@ prettyPrint locations =
           do
             y <- 0 A... (bbox.maxY - 1)
             x <- 0 A... (bbox.maxX - 1)
-            let v = lookup { x, y } grid
+            let v = M.lookup { x, y } grid
             pure $ case v of
               Just (ClosestTo location _) -> "[" <> show location.x <> "," <> show location.y <> "]"
               Just (ClosestToMultipleLocations _) -> "."
