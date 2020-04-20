@@ -1,9 +1,23 @@
-/bower_components/
-/node_modules/
-/.pulp-cache/
-/output/
-/generated-docs/
-/.psc-package/
-/.psc*
-/.purs*
-/.psa*
+# Dependencies
+.psci_modules
+bower_components
+node_modules
+
+# Dot files
+.spago
+.psci
+.pulp-cache
+.purs-repl
+.package-lock
+.psc-ide-port
+.cache
+
+# IDE files
+*.code-workspace
+
+# Generated
+output
+dce-output
+dist
+*.lock
+*.map
