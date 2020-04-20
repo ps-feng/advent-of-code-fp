@@ -3,6 +3,7 @@ module Day6
   , day6Part2
   , fillGrid
   , isInBoundingBox
+  , boundingBox
   , Coord(..)
   , CoordState(..)
   , Location(..)
@@ -19,7 +20,7 @@ import Data.Function (on)
 import Data.Int (fromString)
 import Data.Map (Map, empty, insert, lookup, member, toUnfoldable, values)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Set (Set, empty, fromFoldable, insert, member) as S
+import Data.Set (Set, empty, fromFoldable, insert, isEmpty, member) as S
 import Data.String.Common (split)
 import Data.String.Pattern (Pattern(..))
 import Data.Traversable (traverse)
@@ -152,47 +153,50 @@ fillGrid bbox locations =
 
     fillGrid' :: S.Set Location -> Distance -> Grid -> Grid
     fillGrid' locations' distance currentGrid
-      | locations' == S.empty = currentGrid
+      | S.isEmpty locations' = currentGrid
       | otherwise =
           let
-            Tuple newGrid newLocations = fillGrid'' locations' distance currentGrid
+            Tuple updatedGrid remainingLocations = fillGrid''
           in
-            fillGrid' newLocations (distance + 1) newGrid
-
-    fillGrid'' :: S.Set Location -> Distance -> Grid -> Tuple Grid (S.Set Location)
-    fillGrid'' locations' distance currentGrid =
-      foldl go (Tuple currentGrid S.empty) locations'
+            fillGrid' remainingLocations (distance + 1) updatedGrid
       where
-        go acc location =
-          let 
-            isInBoundingBox' = isInBoundingBox bbox.maxX bbox.maxY
-            curUpdatableLocations = snd acc
-            (Tuple updatedGrid numberOfValidUpdates) = updateGridForCellsAtDistanceFromLocation isInBoundingBox' location distance (fst acc)
-          in case numberOfValidUpdates of
-            0 -> Tuple updatedGrid curUpdatableLocations
-            _ -> Tuple updatedGrid (S.insert location curUpdatableLocations)
+        fillGrid'' :: Tuple Grid (S.Set Location)
+        fillGrid'' =
+          foldl go (Tuple currentGrid S.empty) locations'
+          where
+            go acc location =
+              let 
+                isInBoundingBox' = isInBoundingBox bbox.maxX bbox.maxY
+                curUpdatableLocations = snd acc
+                (Tuple updatedGrid numberOfValidUpdates) = updateGridForCellsAtDistanceFromLocation isInBoundingBox' locationSet location distance (fst acc)
+              in case numberOfValidUpdates of
+                0 -> Tuple updatedGrid curUpdatableLocations
+                _ -> Tuple updatedGrid (S.insert location curUpdatableLocations)
 
 updateGridForCellsAtDistanceFromLocation :: (Coord -> Boolean)  -- The bounding box to calculate if coord is valid (inside)
+                                         -> S.Set Location      -- Initial set of locations
                                          -> Location            -- The location for which we are updating the grid
                                          -> Distance            -- The distance from the location
                                          -> Grid                -- The current grid
                                          -> GridUpdateResult    -- A tuple that contains the new grid and the number of valid changes
-updateGridForCellsAtDistanceFromLocation isInBoundingBox' location distance grid =
+updateGridForCellsAtDistanceFromLocation isInBoundingBox' initialLocations location distance grid =
   foldl updateCoordStateAtCoord (Tuple grid 0) $ coordsAtDistanceFromCoord location distance
   where
-    updateCoordStateAtCoord all@(Tuple theGrid numberOfValidUpdates) coord 
+    updateCoordStateAtCoord :: GridUpdateResult -> Coord -> GridUpdateResult
+    updateCoordStateAtCoord all@(Tuple theGrid numberOfValidUpdates) coord
       | not (isInBoundingBox' coord) = all
+      | S.member coord initialLocations = all
       | otherwise =
           let
-            currentState = lookup coord theGrid
-            newState = mergeCoordState (ClosestTo location distance) currentState
+            currentCoordState = lookup coord theGrid
+            newState = mergeCoordState (ClosestTo location distance) currentCoordState
             theGrid' = insert coord newState theGrid
             numberOfValidUpdates' = 
               case newState of
                 (ClosestTo l _) | l == location -> numberOfValidUpdates + 1
                 _ -> numberOfValidUpdates
           in Tuple theGrid' numberOfValidUpdates'
-            
+
 mergeCoordState :: CoordState        -- The state
                 -> Maybe CoordState  -- The state to merge into (if any)
                 -> CoordState        -- The merged state
@@ -259,6 +263,7 @@ chunked array len =
         in
           chunked' leftOver newIntermediateArray 
 
+-- prettyPrint [{x: 1, y: 1}, {x: 1, y: 6}, {x: 8, y: 3}, {x: 3, y: 4}, {x: 5, y: 5}, {x: 8, y: 9}]
 prettyPrint :: Array Location -> Effect Unit
 prettyPrint locations = 
   do
@@ -273,7 +278,7 @@ prettyPrint locations =
               Just (ClosestTo location _) -> "[" <> show location.x <> "," <> show location.y <> "]"
               Just (ClosestToMultipleLocations _) -> "."
               Nothing -> "?"
-    let lala = chunked list (bbox.maxY - 1) :: Array (Array String)
+    let lala = chunked list bbox.maxX :: Array (Array String)
     let lines = map (foldl (\acc str -> acc <> ", " <> str) "") lala :: Array (String)
     let loggedLines = map log lines :: Array (Effect Unit)
     A.fold loggedLines
