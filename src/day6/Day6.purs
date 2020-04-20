@@ -174,7 +174,7 @@ chunked array len =
           leftOver = A.drop len arr
           newIntermediateArray = A.snoc intermediateArray newElems
         in
-          chunked' leftOver intermediateArray 
+          chunked' leftOver newIntermediateArray 
 
 prettyPrint :: Array Location -> Effect Unit
 prettyPrint locations = 
@@ -187,7 +187,7 @@ prettyPrint locations =
             x <- 0 A... (bbox.maxX - 1)
             let v = lookup { x, y } grid
             pure $ case v of
-              Just (ClosestTo location _) -> show location.x <> show location.y
+              Just (ClosestTo location _) -> "[" <> show location.x <> "," <> show location.y <> "]"
               Just (ClosestToMultipleLocations _) -> "."
               Nothing -> "?"
     let lala = trace "lala" \_ -> chunked list (bbox.maxY - 1) :: Array (Array String)
