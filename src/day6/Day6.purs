@@ -222,34 +222,20 @@ mergeCoordState newLocation newDistance (Just currentState) =
       | newDistance < currentDistance  = ClosestTo newLocation newDistance
       | otherwise                      = currentState
 
--- coordsAtDistance0 :: Array Coord
--- coordsAtDistance0 =
---   memoize coordsAtDistanceFromCoord' 0
---   where
---     coordsAtDistanceFromCoord' distance =
---       let
---         distanceMinusOne = (distance -1)
---         negateDistance = negate distance
---         negateDistanceMinusOne = negate distanceMinusOne
---         xs = 0 A... distanceMinusOne <> distance A... negateDistance <> negateDistanceMinusOne A... (-1)
---         ys = negateDistance A... distanceMinusOne <> distance A... negateDistanceMinusOne
---       in
---         A.zipWith (\x y -> { x: x, y: y }) xs ys
-
 coordsAtDistanceFromCoord :: Coord -> Distance -> Array Coord
 coordsAtDistanceFromCoord coord 0 = [coord]
-coordsAtDistanceFromCoord { x: rx, y: ry } distance = 
-  coordsAtDistanceFromCoord'
+coordsAtDistanceFromCoord { x: rx, y: ry } d = 
+  map (\c -> { x: c.x + rx, y: c.y + ry }) $ coordsAtDistanceFromCoord' d
   where
-    coordsAtDistanceFromCoord' =
+    coordsAtDistanceFromCoord' distance =
       let
-        distanceMinusOne = (distance - 1)
+        distanceMinusOne = (distance -1)
         negateDistance = negate distance
         negateDistanceMinusOne = negate distanceMinusOne
         xs = 0 A... distanceMinusOne <> distance A... negateDistance <> negateDistanceMinusOne A... (-1)
         ys = negateDistance A... distanceMinusOne <> distance A... negateDistanceMinusOne
       in
-        A.zipWith (\x y -> { x: x + rx, y: y + ry }) xs ys
+        A.zipWith (\x y -> { x: x, y: y }) xs ys
 
 isInBoundingBox :: BoundingBox -> Coord -> Boolean
 isInBoundingBox { minX, minY, maxX, maxY } coord =

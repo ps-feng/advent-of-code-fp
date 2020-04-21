@@ -5,13 +5,14 @@ import Day6Brute (day6Part2)
 import Effect (Effect)
 import Prelude
 import Test.Assert (assertEqual)
+import Effect.Console as Console
 
 main :: Effect Unit
 main = do
   -- testDay6Part1a
   testDay6Part1b
   -- testDay6Part2a
-  testDay6Part2b
+  -- testDay6Part2b
 
 testDay6Part1a :: Effect Unit
 testDay6Part1a = do
