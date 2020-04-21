@@ -8,26 +8,27 @@ module Day6
   , CoordState(..)
   , Location(..)
   , prettyPrint
+  , prettyPrint'
   ) where
 
 import Prelude
 
-import Effect.Console (log)
-
-import Data.Array ((..), drop, fold, insert, length, snoc, take, zipWith) as A
-import Data.Foldable (foldl, maximumBy)
+import Data.Array ((..), drop, fold, length, snoc, take, zipWith) as A
+import Data.Array (intercalate, zip)
+import Data.Foldable (foldl, maximumBy, fold)
 import Data.Function (on)
 import Data.Int (fromString)
-import Data.Map (Map, empty, insert, lookup, member, toUnfoldable, values)
+import Data.Map (Map, empty, fromFoldable, insert, lookup, toUnfoldable, values)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Set (Set, empty, fromFoldable, insert, isEmpty, member) as S
+import Data.String.CodeUnits (singleton, toCharArray)
 import Data.String.Common (split)
 import Data.String.Pattern (Pattern(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
+import Effect.Console (log)
 import Util (readFileLines)
-import Debug.Trace (trace)
 
 -- Algorithm
 -- 1. Go through each location, one at a time:
@@ -283,20 +284,19 @@ prettyPrint locations =
     let loggedLines = map log lines :: Array (Effect Unit)
     A.fold loggedLines
 
--- prettyPrint' :: Array Location -> Effect Unit
--- prettyPrint' locations = 
---   do
---     let bbox = boundingBox locations
---     let grid = fillGrid bbox locations
---     let list = 
---           do
---             y <- 0 .. (bbox.maxY - 1)
---             let v = map (\x -> log $ show x
---              -- lookup { x, y } grid
---               -- log $ case lookup {x, y} grid of
---               --   Just (ClosestTo location _) -> show location.x <> "_" <> show location.y
---               --   Just (ClosestToMultipleLocations _) -> "."
---               --   Nothing -> "?"
---             ) 0 .. (bbox.maxX - 1)
---             pure $ v
---     fold list
+-- prettyPrint' [{x: 1, y: 1}, {x: 1, y: 6}, {x: 8, y: 3}, {x: 3, y: 4}, {x: 5, y: 5}, {x: 8, y: 9}]
+prettyPrint' :: Array Location -> Effect Unit
+prettyPrint' locations = 
+  do
+    fold $ do
+      y <- 0 A... (bbox.maxY - 1)
+      let row = map (flip locationToString y) $ 0 A... (bbox.maxX - 1)
+      pure $ log $ intercalate " | " row
+  where
+    bbox = boundingBox locations
+    locationsToLetter = fromFoldable $ zip locations (toCharArray "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    grid = fillGrid bbox locations
+    locationToString x y = case lookup {x, y} grid of
+      Just (ClosestTo location _) -> singleton $ fromMaybe '!' $ lookup location locationsToLetter
+      Just (ClosestToMultipleLocations _) -> "."
+      Nothing -> "?"
