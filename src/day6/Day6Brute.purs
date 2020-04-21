@@ -1,15 +1,21 @@
-module Day6Brute (Coord, prettyPrint') where
+module Day6Brute (Coord, day6Part2, solve) where
 
 import Prelude
+
 import Data.Array as A
-import Data.Foldable
-import Data.Function
-import Data.Maybe
+import Data.Foldable (foldl, maximumBy, minimumBy)
+import Data.Function (on)
+import Data.Int (fromString)
+import Data.List as L
 import Data.Map as M
-import Data.Ord
-import Data.String.CodeUnits
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Ord (abs)
+import Data.String.Common (split)
+import Data.String.Pattern (Pattern(..))
+import Data.Traversable (traverse)
 import Effect (Effect)
-import Effect.Console (log)
+import Partial.Unsafe (unsafePartial)
+import Util (readFileLines)
 
 type Coord
   = { x :: Int
@@ -19,18 +25,16 @@ type Coord
 type Location
   = Coord
 
-data CoordState
-  = ClosestTo Location Int
-  | ClosestToMultipleLocations Int
-
 type Grid
-  = M.Map Coord CoordState
+  = M.Map Coord Int
 
 type BoundingBox
   = 
   { min :: Coord
   , max :: Coord
   }
+
+type Distance = Int
 
 makeBoundingBox :: Array Location -> BoundingBox
 makeBoundingBox locations = { min: { x: minX, y: minY },  max: { x: maxX, y: maxY } }
@@ -44,8 +48,8 @@ isAtBoundary :: BoundingBox -> Coord -> Boolean
 isAtBoundary { min: { x: minX, y: minY}, max: { x: maxX, y: maxY} } coord = 
   coord.x == minX || coord.x == maxX || coord.y == minY || coord.y == maxY
 
-toFoldable :: BoundingBox -> Array Coord
-toFoldable bbox = do
+gridCoordsFromBoundingBox :: BoundingBox -> Array Coord
+gridCoordsFromBoundingBox bbox = do
   y <- bbox.min.y A... bbox.max.y
   x <- bbox.min.x A... bbox.max.x
   pure $ { x,  y }
@@ -53,57 +57,68 @@ toFoldable bbox = do
 manhattanDistance :: Coord -> Coord -> Int
 manhattanDistance a b = abs (a.x - b.x) + abs (a.y - b.y)
 
--- calculateMaxArea :: BoundingBox -> Grid -> Int 
--- calculateMaxArea bbox grid = 
---   let locationsWithInfiniteArea = 
---   foldl (\(Tuple k v) -> ) 0 M.toUnfoldable grid
+day6Part2 :: Distance -> String -> Effect (Maybe Int)
+day6Part2 distance filePath = do
+  input <- readFileLines filePath
+  pure
+    $ do
+        locations <- traverse splitLineToCoord input
+        pure $ solve distance locations
+  where
+    splitLineToCoord :: String -> Maybe Coord
+    splitLineToCoord input = splitLineToCoord' $ split (Pattern ", ") input
+      where
+      splitLineToCoord' [ x, y ] = makeCoord <$> (fromString x) <*> (fromString y)
+        where
+          makeCoord :: Int -> Int -> Coord
+          makeCoord x' y' = { x: x', y: y' }
 
-solve :: Array Coord -> Grid
-solve input =
+      splitLineToCoord' _ = Nothing
+
+solve :: Distance -> Array Location -> Int
+solve maximumDistance locations =
   let 
-    bbox = makeBoundingBox input
-    bboxCoords = toFoldable bbox
-    updateGrid = solve' bboxCoords
-  in foldl updateGrid M.empty input
-
-solve' :: Array Coord -> Grid -> Location -> Grid
-solve' bboxCoords initialGrid location = 
-  foldl (\acc pos ->
-    let distance = manhattanDistance location pos
-    in M.alter (\v -> Just $ mergeCoordState location distance v) pos acc
-  ) initialGrid bboxCoords
-
-mergeCoordState :: Location        
-                -> Int               -- Distance
-                -> Maybe CoordState  -- The current state
-                -> CoordState        -- The new state
-mergeCoordState newLocation newDistance Nothing = ClosestTo newLocation newDistance
-mergeCoordState newLocation newDistance (Just currentState) =
-  let
-    currentDist =
-      case currentState of
-        ClosestTo _ distance -> distance
-        ClosestToMultipleLocations distance -> distance
-  in
-    mergeCoordState' currentDist
-  where
-    mergeCoordState' currentDistance 
-      | newDistance == currentDistance = ClosestToMultipleLocations currentDistance
-      | newDistance < currentDistance  = ClosestTo newLocation newDistance
-      | otherwise                      = currentState
-
-prettyPrint' :: Array Location -> Effect Unit
-prettyPrint' locations = 
-  do
-    A.fold $ do
-      y <- bbox.min.y A... bbox.max.y
-      let row = map (flip locationToString y) $ bbox.min.x A... (bbox.max.x)
-      pure $ log $ intercalate " | " row
-  where
     bbox = makeBoundingBox locations
-    locationsToLetter = M.fromFoldable $ A.zip locations (toCharArray "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-    grid = solve locations
-    locationToString x y = case M.lookup {x, y} grid of
-      Just (ClosestTo location _) -> singleton $ fromMaybe '!' $ M.lookup location locationsToLetter
-      Just (ClosestToMultipleLocations _) -> "."
-      Nothing -> "?"
+    gridCoords = gridCoordsFromBoundingBox bbox
+    finalGrid = foldl (updateCoord maximumDistance locations)  M.empty gridCoords
+  in
+    L.length $ L.filter (_ < maximumDistance) $ M.values finalGrid
+  where
+    -- updateGridForCoord :: Grid -> Coord -> Grid
+    -- updateGridForCoord initialGrid coord = 
+    --   foldl (\acc location ->
+    --     let distance = manhattanDistance coord location
+    --     in M.alter (\v -> Just $ (fromMaybe 0 v) + distance) coord acc
+    --   ) initialGrid locations
+
+    -- This was supposed to be faster by not continue to calculate the distance when
+    -- it's over the maximum, but still superslow...
+    updateCoord :: Distance -> Array Location -> Grid -> Coord -> Grid
+    updateCoord maxDistance locations' grid coord =
+      if A.null locations' then grid
+      else
+        let
+          location = unsafePartial $ A.unsafeIndex locations' 0
+          locationsTail = fromMaybe [] $ A.tail locations'
+          distance = manhattanDistance coord location
+          saveDist = fromMaybe 0 $ M.lookup coord grid
+          newDist = distance + saveDist
+          newGrid = M.insert coord newDist grid
+          remainingLocations = if newDist > maxDistance then [] else locationsTail
+        in
+          updateCoord maxDistance remainingLocations newGrid coord
+
+-- prettyPrint' :: Distance -> Array Location -> Effect Unit
+-- prettyPrint' maximumDistance locations = 
+--   do
+--     A.fold $ do
+--       y <- bbox.min.y A... bbox.max.y
+--       let row = map (flip locationToString y) $ bbox.min.x A... (bbox.max.x)
+--       pure $ log $ intercalate " | " row
+--   where
+--     bbox = makeBoundingBox locations
+--     grid = solve maximumDistance locations
+--     locationToString x y = case M.lookup {x, y} grid of
+--       Just distance | distance < maximumDistance -> "#"
+--       Just distance -> " "
+--       Nothing -> " "

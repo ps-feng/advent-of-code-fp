@@ -1,6 +1,5 @@
 module Day6
   ( day6Part1
-  , day6Part2
   , fillGrid
   , isInBoundingBox
   , boundingBox
@@ -14,9 +13,10 @@ module Day6
 
 import Prelude
 
-import Data.Array ((..), drop, filter, fold, length, mapMaybe, snoc, take, zip, zipWith) as A
+import Data.Array ((..), drop, fold, length, mapMaybe, snoc, take, zip, zipWith) as A
 import Data.Foldable (foldl, intercalate, maximumBy, minimumBy)
 import Data.Function (on)
+-- import Data.Function.Memoize (memoize)
 import Data.Int (fromString)
 import Data.Map (Map, empty, insert, lookup, fromFoldable, toUnfoldable, values) as M
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -78,9 +78,6 @@ type BoundingBox
 
 day6Part1 :: String -> Effect (Maybe Int)
 day6Part1 filePath = solve filePath
-
-day6Part2 :: String -> Effect (Maybe Int)
-day6Part2 filePath = solve filePath
 
 solve :: String -> Effect (Maybe Int)
 solve filePath = do
@@ -224,6 +221,20 @@ mergeCoordState newLocation newDistance (Just currentState) =
       | newDistance == currentDistance = ClosestToMultipleLocations currentDistance
       | newDistance < currentDistance  = ClosestTo newLocation newDistance
       | otherwise                      = currentState
+
+-- coordsAtDistance0 :: Array Coord
+-- coordsAtDistance0 =
+--   memoize coordsAtDistanceFromCoord' 0
+--   where
+--     coordsAtDistanceFromCoord' distance =
+--       let
+--         distanceMinusOne = (distance -1)
+--         negateDistance = negate distance
+--         negateDistanceMinusOne = negate distanceMinusOne
+--         xs = 0 A... distanceMinusOne <> distance A... negateDistance <> negateDistanceMinusOne A... (-1)
+--         ys = negateDistance A... distanceMinusOne <> distance A... negateDistanceMinusOne
+--       in
+--         A.zipWith (\x y -> { x: x, y: y }) xs ys
 
 coordsAtDistanceFromCoord :: Coord -> Distance -> Array Coord
 coordsAtDistanceFromCoord coord 0 = [coord]
