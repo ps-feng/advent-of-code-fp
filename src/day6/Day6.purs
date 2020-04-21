@@ -14,10 +14,8 @@ module Day6
 
 import Prelude
 
-import Effect.Console (log)
-
-import Data.Array ((..), drop, fold, length, snoc, take, zip, zipWith) as A
-import Data.Foldable (foldl, intercalate, maximumBy)
+import Data.Array ((..), drop, filter, fold, length, mapMaybe, snoc, take, zip, zipWith) as A
+import Data.Foldable (foldl, intercalate, maximumBy, minimumBy)
 import Data.Function (on)
 import Data.Int (fromString)
 import Data.Map (Map, empty, insert, lookup, fromFoldable, toUnfoldable, values) as M
@@ -72,8 +70,10 @@ type Distance
 
 type BoundingBox
   = 
-  { maxX :: Int
-  , maxY :: Int 
+  { minX :: Int
+  , minY :: Int
+  , maxX :: Int
+  , maxY :: Int
   }
 
 day6Part1 :: String -> Effect (Maybe Int)
@@ -126,28 +126,39 @@ maxArea :: BoundingBox -> Grid -> Int
 maxArea bbox grid =
   let
     gridKeyValues = M.toUnfoldable grid :: Array (Tuple Coord CoordState)
-    { infiniteLocations: _, nonInfiniteLocationToCount } = 
-      foldl go { infiniteLocations: S.empty, nonInfiniteLocationToCount: M.empty } gridKeyValues
-        where
-          isAtBoundary' = isAtBoundary bbox.maxX bbox.maxY
 
-          go :: MaxAreaAcc -> Tuple Coord CoordState -> MaxAreaAcc
-          go acc@{ infiniteLocations, nonInfiniteLocationToCount } (Tuple coord (ClosestToMultipleLocations _)) = acc
-          go acc@{ infiniteLocations, nonInfiniteLocationToCount } (Tuple coord (ClosestTo location _))
-            | S.member coord infiniteLocations = acc
-            | isAtBoundary' coord = acc { infiniteLocations = S.insert location infiniteLocations }
+    -- Goal: all infinite locations
+    -- set $ map (value.location) $ filter (keyIsOnTheBoundary) $ toUnfoldable grid
+    infiniteLocations :: S.Set Location
+    infiniteLocations = 
+      S.fromFoldable $ A.mapMaybe go gridKeyValues
+        where
+          go (Tuple _ (ClosestToMultipleLocations _)) = Nothing
+          go (Tuple coord (ClosestTo location _)) = 
+            if isAtBoundary bbox coord then Just location
+            else Nothing
+
+    nonInfiniteLocationToCount = 
+      foldl go M.empty gridKeyValues
+        where
+          isAtBoundary' = isAtBoundary bbox
+
+          go :: M.Map Location Int -> Tuple Coord CoordState -> M.Map Location Int
+          go acc (Tuple coord (ClosestToMultipleLocations _)) = acc
+          go acc (Tuple coord (ClosestTo location _))
+            | S.member location infiniteLocations = acc
             | otherwise =
-                case M.lookup location nonInfiniteLocationToCount of
-                  Just count -> acc { nonInfiniteLocationToCount = M.insert location (count + 1) nonInfiniteLocationToCount }
-                  Nothing -> acc { nonInfiniteLocationToCount = M.insert location 1 nonInfiniteLocationToCount }
+                case M.lookup location acc of
+                  Just count -> M.insert location (count + 1) acc
+                  Nothing -> M.insert location 1 acc
   in
     1 + foldl max 0 (M.values nonInfiniteLocationToCount)
 
 fillGrid :: BoundingBox -> Array Location -> Grid
 fillGrid bbox locations =
-  fillGrid' locationSet 1 M.empty
+  fillGrid' initialLocationSet 1 M.empty
   where
-    locationSet = S.fromFoldable locations
+    initialLocationSet = S.fromFoldable locations
 
     fillGrid' :: S.Set Location -> Distance -> Grid -> Grid
     fillGrid' locations' distance currentGrid
@@ -164,9 +175,9 @@ fillGrid bbox locations =
           where
             go acc location =
               let 
-                isInBoundingBox' = isInBoundingBox bbox.maxX bbox.maxY
+                isInBoundingBox' = isInBoundingBox bbox
                 curUpdatableLocations = snd acc
-                (Tuple updatedGrid numberOfValidUpdates) = updateGridForCellsAtDistanceFromLocation isInBoundingBox' locationSet location distance (fst acc)
+                (Tuple updatedGrid numberOfValidUpdates) = updateGridForCellsAtDistanceFromLocation isInBoundingBox' initialLocationSet location distance (fst acc)
               in case numberOfValidUpdates of
                 0 -> Tuple updatedGrid curUpdatableLocations
                 _ -> Tuple updatedGrid (S.insert location curUpdatableLocations)
@@ -181,39 +192,38 @@ updateGridForCellsAtDistanceFromLocation isInBoundingBox' initialLocations locat
   foldl updateCoordStateAtCoord (Tuple grid 0) $ coordsAtDistanceFromCoord location distance
   where
     updateCoordStateAtCoord :: GridUpdateResult -> Coord -> GridUpdateResult
-    updateCoordStateAtCoord all@(Tuple theGrid numberOfValidUpdates) coord
+    updateCoordStateAtCoord all@(Tuple curGrid numberOfValidUpdates) coord
       | not (isInBoundingBox' coord) = all
       | S.member coord initialLocations = all
       | otherwise =
           let
-            currentCoordState = M.lookup coord theGrid
-            newState = mergeCoordState (ClosestTo location distance) currentCoordState
-            theGrid' = M.insert coord newState theGrid
-            numberOfValidUpdates' = 
+            currentCoordState = M.lookup coord curGrid
+            newState = mergeCoordState location distance currentCoordState
+            updatedGrid = M.insert coord newState curGrid
+            numberOfValidUpdates' =
               case newState of
                 (ClosestTo l _) | l == location -> numberOfValidUpdates + 1
                 _ -> numberOfValidUpdates
-          in Tuple theGrid' numberOfValidUpdates'
+          in Tuple updatedGrid numberOfValidUpdates'
 
-mergeCoordState :: CoordState        -- The state
-                -> Maybe CoordState  -- The state to merge into (if any)
-                -> CoordState        -- The merged state
-mergeCoordState state Nothing = state
-mergeCoordState state (Just current) =
-  case [ state, current ] of
-    [ ClosestTo llocation ldistance,  ClosestTo rlocation rdistance ] -> 
-      if llocation == rlocation
-      then current
-      else mergeCoordState' ldistance rdistance
-    [ ClosestToMultipleLocations ldistance, ClosestTo _ rdistance ] -> mergeCoordState' ldistance rdistance
-    [ ClosestTo _ ldistance, ClosestToMultipleLocations rdistance ] -> mergeCoordState' ldistance rdistance
-    [ ClosestToMultipleLocations ldistance, ClosestToMultipleLocations rdistance ] -> mergeCoordState' ldistance rdistance
-    _ -> current -- TODO: check this
+mergeCoordState :: Location        
+                -> Int               -- Distance
+                -> Maybe CoordState  -- The current state
+                -> CoordState        -- The new state
+mergeCoordState newLocation newDistance Nothing = ClosestTo newLocation newDistance
+mergeCoordState newLocation newDistance (Just currentState) =
+  let
+    currentDist =
+      case currentState of
+        ClosestTo _ distance -> distance
+        ClosestToMultipleLocations distance -> distance
+  in
+    mergeCoordState' currentDist
   where
-    mergeCoordState' stateDistance currentDistance 
-      | stateDistance == currentDistance = ClosestToMultipleLocations currentDistance
-      | stateDistance < currentDistance  = state
-      | otherwise                        = current
+    mergeCoordState' currentDistance 
+      | newDistance == currentDistance = ClosestToMultipleLocations currentDistance
+      | newDistance < currentDistance  = ClosestTo newLocation newDistance
+      | otherwise                      = currentState
 
 coordsAtDistanceFromCoord :: Coord -> Distance -> Array Coord
 coordsAtDistanceFromCoord coord 0 = [coord]
@@ -230,21 +240,22 @@ coordsAtDistanceFromCoord { x: rx, y: ry } distance =
       in
         A.zipWith (\x y -> { x: x + rx, y: y + ry }) xs ys
 
-isInBoundingBox :: Int -> Int -> Coord -> Boolean
-isInBoundingBox maxX maxY coord =
-  0 <= coord.x && coord.x < maxX &&
-  0 <= coord.y && coord.y < maxY
+isInBoundingBox :: BoundingBox -> Coord -> Boolean
+isInBoundingBox { minX, minY, maxX, maxY } coord =
+  minX <= coord.x && coord.x <= maxX &&
+  minY <= coord.y && coord.y <= maxY
 
-isAtBoundary :: Int -> Int -> Coord -> Boolean
-isAtBoundary maxX maxY coord =
-  coord.x == 0 || coord.x == maxX - 1 || coord.y == 0 || coord.y == maxY - 1
+isAtBoundary :: BoundingBox -> Coord -> Boolean
+isAtBoundary { minX, minY, maxX, maxY } coord =
+  coord.x == minX || coord.x == maxX || coord.y == minY || coord.y == maxY
 
 boundingBox :: Array Coord -> BoundingBox
-boundingBox locations = { maxX: maxX, maxY: maxY }
+boundingBox locations = { minX: minX, minY: minY, maxX: maxX, maxY: maxY }
   where
-  maxX = fromMaybe 0 $ (_ + 1) <$> (_.x <$> maximumBy (compare `on` _.x) locations)
-
-  maxY = fromMaybe 0 $ (_ + 1) <$> (_.y <$> maximumBy (compare `on` _.y) locations)
+  minX = fromMaybe 0 $ (_.x <$> minimumBy (compare `on` _.x) locations)
+  minY = fromMaybe 0 $ (_.y <$> minimumBy (compare `on` _.y) locations)
+  maxX = fromMaybe 0 $ (_.x <$> maximumBy (compare `on` _.x) locations)
+  maxY = fromMaybe 0 $ (_.y <$> maximumBy (compare `on` _.y) locations)
 
 chunked :: forall a. Array a -> Int -> Array (Array a)
 chunked array len =
@@ -269,8 +280,8 @@ prettyPrint locations =
     let grid = fillGrid bbox locations
     let list = 
           do
-            y <- 0 A... (bbox.maxY - 1)
-            x <- 0 A... (bbox.maxX - 1)
+            y <- 0 A... (bbox.maxY)
+            x <- 0 A... (bbox.maxX)
             let v = M.lookup { x, y } grid
             pure $ case v of
               Just (ClosestTo location _) -> "[" <> show location.x <> "," <> show location.y <> "]"
@@ -286,8 +297,8 @@ prettyPrint' :: Array Location -> Effect Unit
 prettyPrint' locations = 
   do
     A.fold $ do
-      y <- 0 A... (bbox.maxY - 1)
-      let row = map (flip locationToString y) $ 0 A... (bbox.maxX - 1)
+      y <- bbox.minY A... (bbox.maxY)
+      let row = map (flip locationToString y) $ bbox.minX A... (bbox.maxX)
       pure $ log $ intercalate " | " row
   where
     bbox = boundingBox locations
