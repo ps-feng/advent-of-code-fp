@@ -116,6 +116,9 @@ type NodeMap = Map Char Node
 Solution D
 **********
 
+Part 1
+------
+
 The problem is about doing a topological sort of the given nodes so that:
 	- A node is visited when there's no more previous dependency.In other words: it's in-degree is 0
 	- In case of multiple choices, get the one with the lowest alphabetical order
@@ -170,3 +173,27 @@ Steps
 	Adj of G: Nothing
 	Roots: []
 	Result: [C, A, B, D, F, E, G]
+
+Part 2
+------
+Definitions:
+- M: number of workers
+
+- Fill the state as before
+  - adjancencyMap
+  - inDegreeMap
+  - zeroInDegreeQueue (PQ): priority = value(char)
+  - schedulerQueue (PQ): priority = value(char) + 60
+
+In iteration:
+- if schedulerQueue and the zeroInDegreeQueue are empty, return the sum of time spent to complete the instructions
+
+- if length zeroInDegreeQueue > 0
+	- move N elements from zeroInDegreeQueue to the schedulerQueue
+		where 
+			N = min(M - length schedulerQueue, length of zeroInDegreeQueue)
+			**priority** = value(char) + 60
+- take the head of the schedulerQueue
+- substract the amount of time to complete (priority) of the head from the other steps in the schedulerQueue
+- remove from the schedulerQueue all step that have priority = 0
+- add the time spent in last step to the sum of time to complete this one
