@@ -123,6 +123,18 @@ let upstream =
 
 let overrides = {=}
 
-let additions = {=}
+let additions =
+    { pqueue = 
+        { dependencies = [
+            "lists",
+            "newtype",
+            "ordered-collections"
+          ]
+        , repo =
+            "https://github.com/nullobject/purescript-pqueue"
+        , version =
+            "v2.0.0"
+        }
+    }
 
 in  upstream // overrides // additions
