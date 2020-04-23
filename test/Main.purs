@@ -9,7 +9,8 @@ import Effect (Effect)
 -- import Test.Day4 as Day4
 -- import Test.Day5 as Day5
 -- import Test.Day6 as Day6
-import Test.Day7 as Day7
+-- import Test.Day7 as Day7
+import Test.Day8 as Day8
 
 main :: Effect Unit
 main = do
@@ -19,5 +20,5 @@ main = do
   -- Day4.main
   -- Day5.main
   -- Day6.main
-  Day7.main
-  pure unit
+  -- Day7.main
+  Day8.main

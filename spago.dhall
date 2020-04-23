@@ -16,6 +16,7 @@ You can edit this file as you like.
     , "pqueue"
     , "prelude"
     , "psci-support"
+    , "string-parsers"
     , "stringutils"
     , "unordered-collections"
     ]
