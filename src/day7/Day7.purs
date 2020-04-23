@@ -8,15 +8,15 @@ import Prelude
 import Data.Char (toCharCode)
 import Data.Foldable (foldl)
 import Data.List ((:))
-import Data.List (List(..), length, mapMaybe) as L
+import Data.List (List(..), difference, fromFoldable, length, mapMaybe) as L
 import Data.Map (Map, alter, empty, keys, lookup) as M
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.PQueue (PQueue, empty, fromFoldable, head, insert, tail) as PQ
-import Data.Set (difference, fromFoldable, map) as S
+import Data.Set (difference, empty, fromFoldable, insert, map) as S
 import Data.String.CodeUnits (charAt, fromCharArray)
 import Data.Traversable (sequence)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), snd)
 import Effect (Effect)
 import Effect.Exception (error, throwException)
 import Util (readFileLines)
@@ -139,27 +139,27 @@ calculatePart2 numWorkers timeElapsed { adjacencyMap, inDegreeMap, zeroInDegreeQ
     , schedulerQueue: intermediateSchedulerQueue } = 
       moveToSchedulerQueue zeroInDegreeQueue schedulerQueue
 
+    (Tuple time nextSchedulerQueue) = runScheduler intermediateSchedulerQueue
+
+    removedSteps = L.difference (snd <$> unwrap intermediateSchedulerQueue) (snd <$> unwrap nextSchedulerQueue)
+
     adjacents =
-      case PQ.head zeroInDegreeQueue of
-        Nothing -> L.Nil
-        Just (Tuple _ nextStep) -> getAdjacents nextStep adjacencyMap
+      L.fromFoldable $ foldl (\acc step -> acc <> (S.fromFoldable $ getAdjacents step adjacencyMap)) S.empty removedSteps
     
     nextInDegreeMap = calculateNextInDegreeMap inDegreeMap adjacents
     
     nextZeroInDegreeQueue =
-      if pqlength schedulerQueue < numWorkers then
-        calculateNextZeroInDegreeQueue 
-          (fromMaybe PQ.empty $ PQ.tail intermediateZeroInDegreeQueue) 
-          nextInDegreeMap
-          adjacents
-      else
+      calculateNextZeroInDegreeQueue 
         intermediateZeroInDegreeQueue
+        nextInDegreeMap
+        adjacents
     
-    bla3 = trace ("Time " <> show timeElapsed <> " zero-in: " <> show zeroInDegreeQueue) \_-> 
-            trace ("Time " <> show timeElapsed <> " intermZQ: " <> show intermediateZeroInDegreeQueue) \_-> 
-              trace ("Time " <> show timeElapsed <> " next zero-in: " <> show nextZeroInDegreeQueue) \_-> 1
-
-    (Tuple time nextSchedulerQueue) = finishOneStep intermediateSchedulerQueue
+    -- bla3 = trace ("Time " <> show (timeElapsed+time) <> " zero-inQ: " <> show zeroInDegreeQueue) \_-> 
+    --         trace ("Time " <> show (timeElapsed+time) <> " interm-zero-inQ: " <> show intermediateZeroInDegreeQueue) \_-> 
+    --           trace ("Time " <> show (timeElapsed+time) <> " removedSteps: " <> show removedSteps) \_->
+    --             trace ("Time " <> show (timeElapsed+time) <> " adjacents: " <> show adjacents) \_->
+    --               trace ("Time " <> show (timeElapsed+time) <> " nextInDegreeMap: " <> show nextInDegreeMap) \_->
+    --                 trace ("Time " <> show (timeElapsed+time) <> " next zero-inQ: " <> show nextZeroInDegreeQueue) \_-> 1
   in calculatePart2
       numWorkers
       (timeElapsed + time)
@@ -177,8 +177,8 @@ calculatePart2 numWorkers timeElapsed { adjacencyMap, inDegreeMap, zeroInDegreeQ
       in
         move numStepsToMove zqueue schedQueue
 
-    finishOneStep :: SchedulerQueue -> Tuple Int SchedulerQueue
-    finishOneStep schedQueue =
+    runScheduler :: SchedulerQueue -> Tuple Int SchedulerQueue
+    runScheduler schedQueue =
       let head = PQ.head (trace ("Processing 1 step, queue: " <> show schedQueue) \_-> schedQueue)
       in
         case head of
@@ -217,7 +217,7 @@ move num zeroInDegreeQueue schedulerQueue  =
       Nothing -> { zeroInDegreeQueue, schedulerQueue }
       Just (Tuple p a) ->
         let
-          schedPriority = (toCharCode a) - (toCharCode 'A') + 1
+          schedPriority = 60 + (toCharCode a) - (toCharCode 'A') + 1
           newSchedulerQueue = PQ.insert schedPriority a schedulerQueue
         in case PQ.tail zeroInDegreeQueue of
             Nothing -> { zeroInDegreeQueue: PQ.empty, schedulerQueue: newSchedulerQueue }

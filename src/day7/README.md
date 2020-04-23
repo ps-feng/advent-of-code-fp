@@ -195,5 +195,8 @@ In iteration:
 			**priority** = value(char) + 60
 - take the head of the schedulerQueue
 - substract the amount of time to complete (priority) of the head from the other steps in the schedulerQueue
-- remove from the schedulerQueue all step that have priority = 0
+- remove from the schedulerQueue all steps that have priority = 0
+- compute adjacents of all steps that have been removed
+- compute next inDegreeMap for the adjacents
+- add new 0-indegree to the zeroInDegreeQueue
 - add the time spent in last step to the sum of time to complete this one
