@@ -21,12 +21,15 @@ main = do
   testRightOnEmptyZipper
   testRightOnSingletonZipper
   testLeftOnEmptyZipper
+  testLeftAndRightZipper
   testInsertOnEmptyZipper
+  testInsert
   testDeleteOnEmptyZipper
   testDeleteOnSingletonZipper
   testReversezOnEmptyZipper
   testReversezOnSingletonZipper
   testReversez
+  
 
 testBeginpOnEmptyZipper :: Effect Unit
 testBeginpOnEmptyZipper = 
@@ -90,11 +93,25 @@ testLeftOnEmptyZipper =
     , expected: Nothing
     }
 
+testLeftAndRightZipper :: Effect Unit
+testLeftAndRightZipper =
+  assertEqual 
+    { actual: left =<< (right $ fromFoldable [0, 10, 20])
+    , expected: Just $ fromFoldable [0, 10, 20]
+    }
+
 testInsertOnEmptyZipper :: Effect Unit
 testInsertOnEmptyZipper =
   assertEqual 
     { actual: insert 10 (empty :: ListZipper Int)
     , expected: singleton 10
+    }
+
+testInsert :: Effect Unit
+testInsert =
+  assertEqual 
+    { actual: insert 0 <<< insert 10 <<< insert 20 $ (empty :: ListZipper Int)
+    , expected: fromFoldable [0, 10, 20]
     }
 
 testDeleteOnEmptyZipper :: Effect Unit

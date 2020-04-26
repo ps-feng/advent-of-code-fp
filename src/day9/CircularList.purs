@@ -15,6 +15,7 @@ import Data.Array (deleteAt, insertAt, length, null) as A
 import Data.Array (foldl, (!!), (..))
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Ord (abs)
+import Day9.ListZipper as LZ
 
 class CircularList l where
   current :: forall a. l a -> Maybe a
@@ -59,3 +60,4 @@ moveFocus steps l =
     go list _ =
       if steps > 0 then right list 
       else left list
+      

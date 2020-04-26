@@ -77,6 +77,7 @@ delete :: forall a. ListZipper a -> ListZipper a
 delete zipper@(Zip _ L.Nil) = zipper
 delete (Zip ls (L.Cons r rs)) = Zip ls rs
 
+-- Make it like in Haskell
 reversez :: forall a. ListZipper a -> ListZipper a
 reversez (Zip ls L.Nil) = Zip L.Nil ls
 reversez (Zip ls (L.Cons r rs)) = Zip rs (r : ls)
