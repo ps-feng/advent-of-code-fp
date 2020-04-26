@@ -1,34 +1,24 @@
-module Test.InfiniteListZipper where
+module Test.FocusedArray where
 
 import Prelude
 
 import Data.Maybe (Maybe(..))
-import Day9.CircularList (current, remove, insert, left, right)
-import Day9.ListZipper (ListZipper, empty, singleton)
+import Day9.CircularList (FocusedArray(..), current, remove, insert, left, right)
 import Effect (Effect)
 import Test.Assert (assertEqual)
 
-import Debug.Trace
+singleton :: forall a. a -> FocusedArray a
+singleton a = FocusedArray { currentIndex: 0, array: [a] }
 
 main :: Effect Unit
 main = do
-  testCurrentOnEmptyList
-  testCurrentOnSingletonList
-  testRightOnSingletonList
-  testLeftOnSingletonList
-  testInsertOnEmptyList
-  testInsertOnSingletonList
-  testInsertOnSingletonListShouldAddElementAsLast
-  testDeleteOnEmptyList
-  testDeleteOnSingletonList
-  testDeleteShouldRemoveCurrentElement
-
-testCurrentOnEmptyList :: Effect Unit
-testCurrentOnEmptyList = 
-  assertEqual 
-    { actual: current (empty :: ListZipper Int)
-    , expected: Nothing
-    }
+   testCurrentOnSingletonList
+   testRightOnSingletonList
+   testLeftOnSingletonList
+   testInsertOnSingletonList
+   testInsertOnSingletonListShouldAddElementAsLast
+   testDeleteOnSingletonList
+   testDeleteShouldRemoveCurrentElement
 
 testCurrentOnSingletonList :: Effect Unit
 testCurrentOnSingletonList = 
@@ -51,13 +41,6 @@ testLeftOnSingletonList =
     , expected: Just 10
     }
 
-testInsertOnEmptyList :: Effect Unit
-testInsertOnEmptyList =
-  assertEqual 
-    { actual: current $ insert 10 $ (empty :: ListZipper Int)
-    , expected: Just 10
-    }
-
 testInsertOnSingletonList :: Effect Unit
 testInsertOnSingletonList =
   assertEqual 
@@ -72,13 +55,6 @@ testInsertOnSingletonListShouldAddElementAsLast =
     , expected: Just 10
     }
 
-testDeleteOnEmptyList :: Effect Unit
-testDeleteOnEmptyList =
-  assertEqual 
-    { actual: current $ remove (empty :: ListZipper Int)
-    , expected: Nothing
-    }
-
 testDeleteOnSingletonList :: Effect Unit
 testDeleteOnSingletonList = 
   assertEqual 
@@ -88,7 +64,7 @@ testDeleteOnSingletonList =
 
 testDeleteShouldRemoveCurrentElement :: Effect Unit
 testDeleteShouldRemoveCurrentElement =
-  assertEqual 
+    assertEqual 
     { actual: current $ remove $ left $ insert 20 $ singleton 10
     , expected: Just 20
     }

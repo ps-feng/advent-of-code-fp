@@ -10,6 +10,7 @@ import Test.Assert (assertEqual)
 main :: Effect Unit
 main = do
   testDay9Part1Examples
+  testDay9Part1a
 
 testDay9Part1Examples :: Effect Unit
 testDay9Part1Examples =

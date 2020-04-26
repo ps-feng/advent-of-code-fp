@@ -6,7 +6,8 @@ import Data.Array ((..))
 import Data.Foldable (class Foldable, foldl)
 import Data.Map (Map, alter, empty, values) as M
 import Data.Maybe (Maybe(..), fromMaybe)
-import Day9.CircularList (FocusedArray(..), current, insert, moveFocus, remove)
+import Day9.CircularList (current, insert, moveFocus, remove)
+import Day9.ListZipper (ListZipper, singleton)
 import Effect (Effect)
 
 type Scores = M.Map Int Int
@@ -21,7 +22,7 @@ day9Part2 numPlayers numMarbles = do
 
 type State =
   { player :: Int
-  , circle :: FocusedArray Int
+  , circle :: ListZipper Int
   , scores :: Scores
   }
 
@@ -33,7 +34,7 @@ solve numPlayers marbles =
   let
     initialState =
       { player: 0
-      , circle: FocusedArray { currentIndex: 0, array: [0] }
+      , circle: singleton 0
       , scores: M.empty :: Scores}
   in
     maxScore $ foldl go initialState marbles
@@ -43,7 +44,7 @@ solve numPlayers marbles =
         if (marble `mod` 23) /= 0 then
           let
             newCircle = insert marble $ moveFocus 1 circle
-            -- bla = trace (show newCircle) \_ -> 1
+            -- bla = trace (show $ toList circle) \_ -> 1
           in
             { player: nextPlayer, circle: newCircle, scores }
         else

@@ -15,7 +15,8 @@ import Data.Array (deleteAt, insertAt, length, null) as A
 import Data.Array (foldl, (!!), (..))
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Ord (abs)
-import Day9.ListZipper as LZ
+import Day9.ListZipper (ListZipper)
+import Day9.ListZipper (beginp, delete, endp, insert, left, right, safeCursor) as LZ
 
 class CircularList l where
   current :: forall a. l a -> Maybe a
@@ -60,4 +61,36 @@ moveFocus steps l =
     go list _ =
       if steps > 0 then right list 
       else left list
-      
+
+instance circularListZipper :: CircularList ListZipper where
+
+  current zipper = LZ.safeCursor zipper
+
+  right zipper =     
+    let r = fromMaybe zipper $ LZ.right zipper
+    in if LZ.endp r then (top r) else r
+
+  left zipper = 
+    if LZ.beginp zipper 
+    then bottom zipper
+    else fromMaybe zipper $ LZ.left zipper
+    
+  insert a zipper = 
+    let a' = LZ.insert a $ fromMaybe zipper $ LZ.right zipper
+    in if LZ.endp a' then (top a') else a'
+
+  remove a = 
+    let a' = LZ.delete a
+    in if LZ.endp a' then (top a') else a'
+
+-- Private 
+
+top :: forall a. ListZipper a -> ListZipper a
+top a 
+  | LZ.beginp a = a
+  | otherwise = top $ fromMaybe a $ LZ.left a 
+
+bottom :: forall a. ListZipper a -> ListZipper a
+bottom a   
+  | LZ.endp a = fromMaybe a $ LZ.left a
+  | otherwise = bottom $ fromMaybe a $ LZ.right a
