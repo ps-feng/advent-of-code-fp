@@ -3,6 +3,7 @@ module Day9 (day9Part1 , day9Part2) where
 import Prelude
 
 import Data.Array ((..))
+import Data.BigInt (BigInt, fromInt)
 import Data.Foldable (class Foldable, foldl)
 import Data.Map (Map, alter, empty, values) as M
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -10,13 +11,13 @@ import Day9.CircularList (current, insert, moveFocus, remove)
 import Day9.ListZipper (ListZipper, singleton)
 import Effect (Effect)
 
-type Scores = M.Map Int Int
+type Scores = M.Map Int BigInt
 
-day9Part1 :: Int -> Int -> Effect Int
+day9Part1 :: Int -> Int -> Effect BigInt
 day9Part1 numPlayers numMarbles = do
   pure $ solve numPlayers (1 .. numMarbles)
 
-day9Part2 :: Int -> Int -> Effect Int
+day9Part2 :: Int -> Int -> Effect BigInt
 day9Part2 numPlayers numMarbles = do
   pure $ solve numPlayers $ 1 .. (numMarbles * 100)
 
@@ -29,22 +30,22 @@ type State =
 solve :: forall f. Foldable f 
       => Int    -- Number of playes
       -> f Int  -- Marble values
-      -> Int    -- High score
+      -> BigInt    -- High score
 solve numPlayers marbles =
   let
     initialState =
       { player: 0
       , circle: singleton 0
-      , scores: M.empty :: Scores}
+      , scores: M.empty :: Scores
+      }
   in
     maxScore $ foldl go initialState marbles
     where
       go :: State -> Int -> State
-      go { player, circle, scores } marble =
+      go state@{ player, circle, scores } marble =
         if (marble `mod` 23) /= 0 then
           let
             newCircle = insert marble $ moveFocus 1 circle
-            -- bla = trace (show $ toList circle) \_ -> 1
           in
             { player: nextPlayer, circle: newCircle, scores }
         else
@@ -52,14 +53,17 @@ solve numPlayers marbles =
             circleFocusedAtMinus7 = moveFocus (-7) circle
             marbleAtMinus7 = fromMaybe 0 $ current circleFocusedAtMinus7
             newCircle = remove circleFocusedAtMinus7
-            -- bla = trace (show newCircle) \_ -> 1
-            newScores = M.alter (\v -> Just $ (fromMaybe 0 v) + marbleAtMinus7 + marble) player scores
+            newScores = M.alter (
+              \v -> 
+                Just $ (fromMaybe (fromInt 0) v) 
+                     + fromInt(marbleAtMinus7 + marble)
+            ) player scores
           in
             { player: nextPlayer, circle: newCircle, scores: newScores }
         where
           nextPlayer = (player + 1) `mod` numPlayers
   
-      maxScore :: State -> Int
+      maxScore :: State -> BigInt
       maxScore { player: _, circle: _, scores } =
-        foldl max 0 (M.values scores)
+        foldl max (fromInt 0) (M.values scores)
 

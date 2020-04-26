@@ -2,15 +2,18 @@ module Test.Day9 where
 
 import Prelude
 
+import Data.BigInt (BigInt, fromInt, fromString)
 import Data.Foldable (for_)
-import Day9 (day9Part1)
+import Data.Maybe (fromMaybe)
+import Day9 (day9Part1, day9Part2)
 import Effect (Effect)
 import Test.Assert (assertEqual)
 
 main :: Effect Unit
 main = do
-  testDay9Part1Examples
-  testDay9Part1a
+  -- testDay9Part1Examples
+  -- testDay9Part1a
+  testDay9Part2a
 
 testDay9Part1Examples :: Effect Unit
 testDay9Part1Examples =
@@ -22,11 +25,11 @@ testDay9Part1Examples =
                  ]
   in
     for_ examples \{ numPlayers, lastMarbleValue, expectedScore } -> 
-      doTestDay9Part1 numPlayers lastMarbleValue expectedScore
+      doTestDay9Part1 numPlayers lastMarbleValue (fromInt expectedScore)
 
 doTestDay9Part1 :: Int -- Number of players
                 -> Int -- Last marble value
-                -> Int -- Expected highest score
+                -> BigInt-- Expected highest score
                 -> Effect Unit
 doTestDay9Part1 numPlayers lastMarbleValue expectedScore = do
   actual <- day9Part1 numPlayers lastMarbleValue
@@ -35,4 +38,9 @@ doTestDay9Part1 numPlayers lastMarbleValue expectedScore = do
 testDay9Part1a :: Effect Unit
 testDay9Part1a = do
   actual <- day9Part1 416 71617
-  assertEqual { actual: actual, expected: 436720 }
+  assertEqual { actual: actual, expected: (fromInt 436720) }
+
+testDay9Part2a :: Effect Unit
+testDay9Part2a = do
+  actual <- day9Part2 416 71617
+  assertEqual { actual: actual, expected: fromMaybe (fromInt 0) (fromString "3527845091") }
