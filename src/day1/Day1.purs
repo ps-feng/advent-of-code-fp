@@ -5,7 +5,7 @@ module Day1
 
 import Prelude
 
-import Data.Either (Either)
+import Data.Either (Either(..))
 import Data.List (List(..), foldl, fromFoldable, (:))
 import Data.Number (nan)
 import Data.Set as S
@@ -13,10 +13,10 @@ import Effect (Effect)
 import Util (parseAndApply, parseArrayOfNumbers)
 
 day1Part1 :: Effect (Either String Number)
-day1Part1 = parseAndApply "test/day1/input.txt" parseArrayOfNumbers (foldl (+) 0.0)
+day1Part1 = parseAndApply "test/day1/input.txt" parseArrayOfNumbers $ Right <<< foldl (+) 0.0
 
 day1Part2 :: Effect (Either String Number)
-day1Part2 = parseAndApply "test/day1/input.txt" parseArrayOfNumbers day1Part2'
+day1Part2 = parseAndApply "test/day1/input.txt" parseArrayOfNumbers $ Right <<< day1Part2'
   
 day1Part2' :: Array Number -> Number
 day1Part2' [] = nan
