@@ -1,7 +1,7 @@
 module Test.Main where
 
 import Prelude
--- import Benchotron.Core (Benchmark)
+
 import Effect (Effect)
 -- import Test.Day1 as Day1
 -- import Test.Day2 as Day2
